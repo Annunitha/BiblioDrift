@@ -3,10 +3,13 @@
  * Handles 3D rendering, API fetching, Persistent Auth, and Genre Browsing.
  */
 
-const API_BASE = 'https://www.googleapis.com/books/v1/volumes';
-const API_KEY = 'YOUR_GOOGLE_BOOKS_API_KEY';
+const API_BASE = (typeof CONFIG !== 'undefined' && CONFIG.API_BASE) ? CONFIG.API_BASE : 'https://www.googleapis.com/books/v1/volumes';
+const MOOD_API_BASE = (typeof CONFIG !== 'undefined' && CONFIG.MOOD_API_BASE) ? CONFIG.MOOD_API_BASE : '/api/v1';
+const IS_DEV = typeof window !== 'undefined' && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+const delay = (ms) => new Promise(res => setTimeout(res, ms));
+
 let GOOGLE_API_KEY = '';
-const MOOD_API_BASE = '/api/v1'; // Standardized path
 
 /**
  * Utility to extract a cookie value by name.
@@ -24,7 +27,13 @@ async function loadConfig() {
         if (res.ok) {
             const data = await res.json();
             GOOGLE_API_KEY = data.google_books_key || '';
-            if (process.env.NODE_ENV === 'development') {
+            if (window.GoogleBooksClient) {
+                window.GoogleBooksClient.setKeys([
+                    data.google_books_key,
+                    data.google_books_key_secondary
+                ]);
+            }
+            if (IS_DEV) {
                 console.log("Config loaded");
             }
         }
@@ -68,7 +77,7 @@ const SafeStorage = {
         if (navigator.storage && navigator.storage.persist) {
             try {
                 const isPersisted = await navigator.storage.persist();
-                if (process.env.NODE_ENV === 'development') {
+                if (IS_DEV) {
                     console.log(`[Storage] Persistent status: ${isPersisted}`);
                 }
             } catch (e) {
@@ -172,7 +181,7 @@ const SafeStorage = {
                 });
                 
                 if (val) {
-                    if (process.env.NODE_ENV === 'development') console.log("[Storage] Restored from IndexedDB backup");
+                    if (IS_DEV) console.log("[Storage] Restored from IndexedDB backup");
                     // Try to restore to LocalStorage for future sync calls
                     try { localStorage.setItem(key, val); } catch(e) {}
                 }
@@ -278,6 +287,38 @@ const MOCK_BOOKS = [
     }
 ];
 
+function normalizeQueryTerms(query) {
+    return String(query || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean);
+}
+
+function scoreMockBook(book, queryTerms) {
+    const volumeInfo = book.volumeInfo || {};
+    const haystack = [
+        volumeInfo.title || '',
+        (volumeInfo.authors || []).join(' '),
+        volumeInfo.description || '',
+        (volumeInfo.categories || []).join(' ')
+    ].join(' ').toLowerCase();
+
+    return queryTerms.reduce((score, term) => score + (haystack.includes(term) ? 1 : 0), 0);
+}
+
+function getFallbackBooks(query, maxResults = 5) {
+    const queryTerms = normalizeQueryTerms(query);
+    const ranked = MOCK_BOOKS
+        .map(book => ({ book, score: scoreMockBook(book, queryTerms) }))
+        .sort((a, b) => b.score - a.score);
+
+    const matches = ranked.filter(item => item.score > 0).map(item => item.book);
+    const pool = matches.length > 0 ? matches : MOCK_BOOKS;
+
+    return pool.slice(0, maxResults);
+}
+
 
 class BookRenderer {
     constructor(libraryManager = null) {
@@ -304,10 +345,48 @@ class BookRenderer {
         const flipSound = new Audio('assets/sounds/page-flip.mp3');
         flipSound.volume = 0.5;
 
+        /**
+         * ============================================================================
+         * SECURE HTML ESCAPING HELPER & XSS PREVENTION
+         * ============================================================================
+         * Problem:
+         * Previously, book title and author data were injected directly into the 
+         * scene.innerHTML without sanitization. If data from the Google Books API 
+         * contained special HTML characters (e.g., <script> tags, <, >), this could 
+         * lead to rendering bugs or Cross-Site Scripting (XSS) vulnerabilities.
+         * 
+         * Fix:
+         * We introduce this `escapeHTML` helper function. It replaces sensitive 
+         * HTML characters with their harmless entity equivalents before injection. 
+         * This strictly forces the browser to treat the dynamic content as text 
+         * rather than executable code or structural markup. This is a crucial 
+         * security measure when constructing HTML strings manually.
+         * ============================================================================
+         */
+        const escapeHTML = (str) => {
+            if (!str) return "";
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#39;");
+        };
+
+        const safeTitle = escapeHTML(title);
+        const safeAuthors = escapeHTML(authors);
+        const safeDescription = escapeHTML(description);
+        const safeVibe = escapeHTML(vibe);
+        const safeThumb = escapeHTML(thumb.replace('http:', 'https:'));
+
         scene.innerHTML = `
-            <div class="book" data-id="${id}">
+            <div class="book" data-id="${escapeHTML(id)}">
                 <div class="book__face book__face--front">
-                    <img src="${thumb.replace('http:', 'https:')}" alt="${title}">
+                    <!-- 
+                      Using the sanitized title for the 'alt' attribute and 
+                      sanitized URL for 'src' ensures no attribute escape attacks.
+                    -->
+                    <img src="${safeThumb}" alt="${safeTitle}">
                 </div>
                 <div class="book__face book__face--spine" style="background: ${randomSpine}"></div>
                 <div class="book__face book__face--right"></div>
@@ -315,9 +394,10 @@ class BookRenderer {
                 <div class="book__face book__face--bottom"></div>
                 <div class="book__face book__face--back">
                     <div style="overflow-y: auto; height: 100%; padding-right: 5px; scrollbar-width: thin;">
-                        <div style="font-weight: bold; font-size: 0.9rem; margin-bottom: 0.5rem; color: var(--text-main);">${title}</div>
-                        <div class="handwritten-note" style="margin-bottom: 0.8rem; font-style: italic; color: var(--wood-dark);">${vibe}</div>
-                        <div class="book-blurb" style="font-size: 0.8rem; line-height: 1.4; color: var(--text-muted); text-align: justify;">${description}</div>
+                        <!-- Safe data injection using escaped values -->
+                        <div style="font-weight: bold; font-size: 0.9rem; margin-bottom: 0.5rem; color: var(--text-main);">${safeTitle}</div>
+                        <div class="handwritten-note" style="margin-bottom: 0.8rem; font-style: italic; color: var(--wood-dark);">${safeVibe}</div>
+                        <div class="book-blurb" style="font-size: 0.8rem; line-height: 1.4; color: var(--text-muted); text-align: justify;">${safeDescription}</div>
                     </div>
                     ${shelf === 'current' ? `
                     <div class="reading-progress">
@@ -328,12 +408,13 @@ class BookRenderer {
                         <button class="btn-icon add-btn" title="Add to Library"><i class="fa-regular fa-heart"></i></button>
                         <button class="btn-icon info-btn" title="Read Details"><i class="fa-solid fa-info"></i></button>
                         <button class="btn-icon share-btn" title="Share Book"><i class="fa-solid fa-share-nodes"></i></button>
-                        <button class="btn-icon" title="Flip Back" onclick="event.stopPropagation(); this.closest('.book').classList.remove('flipped'); const s = new Audio('assets/sounds/page-flip.mp3'); s.volume=0.5; s.play();"><i class="fa-solid fa-rotate-left"></i></button>
+                        <button class="btn-icon flip-back-btn" title="Flip Back"><i class="fa-solid fa-rotate-left"></i></button>
                     </div>
                 </div>
             </div>
             <div class="glass-overlay">
-                <strong>${title}</strong><br><small>${authors}</small>
+                <!-- Safe author and title data injection in the overlay -->
+                <strong>${safeTitle}</strong><br><small>${safeAuthors}</small>
             </div>
         `;
 
@@ -358,7 +439,7 @@ class BookRenderer {
                 bookEl.classList.toggle('flipped');
                 // Play sound
                 flipSound.play().catch(e => {
-                    if (process.env.NODE_ENV === 'development') {
+                    if (IS_DEV) {
                         console.log("Audio play failed", e);
                     }
                 });
@@ -397,6 +478,17 @@ class BookRenderer {
             }).catch(err => {
                 console.error('Failed to copy text: ', err);
                 showToast('Failed to copy book details.', 'error');
+            });
+        });
+
+        // Flip Back Button
+        scene.querySelector('.flip-back-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            bookEl.classList.remove('flipped');
+            flipSound.play().catch(err => {
+                if (IS_DEV) {
+                    console.log("Audio play failed", err);
+                }
             });
         });
 
@@ -478,7 +570,34 @@ class BookRenderer {
         document.getElementById('modal-author').textContent = book.volumeInfo.authors?.join(", ") || "Unknown Author";
         document.getElementById('modal-summary').textContent = book.volumeInfo.description || "No description available.";
 
+        const addBtn = document.getElementById('modal-add-btn');
         const shareBtn = document.getElementById('modal-share-btn');
+        const isInLibrary = this.libraryManager && typeof this.libraryManager.findBook === 'function' && this.libraryManager.findBook(book.id);
+
+        if (addBtn) {
+            addBtn.onclick = null;
+            addBtn.classList.toggle('library-remove-btn', isInLibrary);
+            addBtn.innerHTML = isInLibrary
+                ? '<i class="fa-solid fa-trash"></i> Remove from Library'
+                : '<i class="fa-regular fa-heart"></i> Add to Library';
+
+            addBtn.onclick = async () => {
+                if (!this.libraryManager) return;
+
+                if (isInLibrary) {
+                    if (confirm('Are you sure you want to remove this book from your library?')) {
+                        await this.libraryManager.removeBook(book.id);
+                        modal.close();
+                    }
+                    return;
+                }
+
+                await this.libraryManager.addBook(book, 'want');
+                addBtn.innerHTML = '<i class="fa-solid fa-trash"></i> Remove from Library';
+                addBtn.classList.add('library-remove-btn');
+            };
+        }
+
         if (shareBtn) {
             shareBtn.onclick = () => {
                 const shareText = `Check out this book: ${book.volumeInfo.title} by ${book.volumeInfo.authors?.join(", ") || "Unknown Author"}`;
@@ -499,37 +618,55 @@ class BookRenderer {
         const container = document.getElementById(elementId);
         if (!container) return;
         try {
-            const keyParam = GOOGLE_API_KEY ? `&key=${GOOGLE_API_KEY}` : '';
-            const encodedQuery = encodeURIComponent(query);
-            const res = await fetch(`${API_BASE}?q=${encodedQuery}&maxResults=${maxResults}&printType=books${keyParam}`);
-
-            if (!res.ok) {
-                throw new Error(`API Error: ${res.statusText}`);
-            }
-
-            const data = await res.json();
+            const client = window.GoogleBooksClient;
+            const data = client
+                ? await client.fetchVolumes(query, { maxResults, extraParams: '&printType=books' })
+                : await (async () => {
+                    const keyParam = GOOGLE_API_KEY ? `&key=${GOOGLE_API_KEY}` : '';
+                    const encodedQuery = encodeURIComponent(query);
+                    const res = await fetch(`${API_BASE}?q=${encodedQuery}&maxResults=${maxResults}&printType=books${keyParam}`);
+                    if (!res.ok) {
+                        throw new Error(`API Error: ${res.statusText}`);
+                    }
+                    return await res.json();
+                })();
 
             if (data.items && data.items.length > 0) {
-                container.innerHTML = '';
-                for (const book of data.items) {
-                    const bookElement = await this.createBookElement(book);
-                    container.appendChild(bookElement);
-                }
+                await this.renderBookCards(container, data.items.slice(0, maxResults));
             } else {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fa-solid fa-box-open"></i>
-                        <p>No books found. The shelves are empty.</p>
-                    </div>`;
+                const fallbackBooks = getFallbackBooks(query, maxResults);
+                if (fallbackBooks.length > 0) {
+                    await this.renderBookCards(container, fallbackBooks);
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <i class="fa-solid fa-box-open"></i>
+                            <p>No books found. The shelves are empty.</p>
+                        </div>`;
+                }
             }
         } catch (err) {
             console.error("Failed to fetch books", err);
+            const fallbackBooks = getFallbackBooks(query, maxResults);
+            if (fallbackBooks.length > 0) {
+                await this.renderBookCards(container, fallbackBooks);
+                return;
+            }
+
             showToast("Failed to load bookshelf.", "error");
             container.innerHTML = `
                 <div class="empty-state">
                     <i class="fa-solid fa-triangle-exclamation"></i>
                     <p>Bookshelf Empty (API connection failed)</p>
                 </div>`;
+        }
+    }
+
+    async renderBookCards(container, books) {
+        container.innerHTML = '';
+        for (const book of books) {
+            const bookElement = await this.createBookElement(book);
+            container.appendChild(bookElement);
         }
     }
 }
@@ -543,6 +680,37 @@ class LibraryManager {
             want: [],
             finished: []
         };
+
+        /**
+         * ==============================================================================
+         * ISSUE FIX: HARDCODED API BASE URL DUPLICATION
+         * ==============================================================================
+         * 
+         * Background Context & Issue:
+         * ---------------------------
+         * Previously, this class had its own hardcoded backend URL assigned right here:
+         * `this.apiBase = 'http://localhost:5000/api/v1';`
+         * 
+         * This implementation was problematic for several critical reasons:
+         * 1. Duplication of Truth: The global constant `MOOD_API_BASE` already exists 
+         *    to define the backend server location. Having a second hardcoded value 
+         *    here meant that if the API URL needed to change (e.g., deploying from dev 
+         *    to production), developers had to remember to manually update it in 
+         *    multiple disparate files. This led to frustrating inconsistencies, bugs, 
+         *    and broken network requests when only one reference was updated.
+         * 2. Security & Environment Portability: Hardcoding an `http://localhost` 
+         *    URL meant the application structure was rigidly tied to a local machine, 
+         *    and would cause Mixed Content warnings or blockages in production 
+         *    environments that require secure HTTPS connections.
+         * 
+         * The Resolution:
+         * ---------------
+         * We now strictly reuse the global `MOOD_API_BASE` constant. By centralizing 
+         * the configuration to a single source of truth, we ensure complete consistency 
+         * across the entire application architecture while dynamically adapting to the 
+         * secure network requirements of the deployed environment.
+         * ==============================================================================
+         */
         this.apiBase = MOOD_API_BASE; // Fixed: Use global constant (Issue #7)
 
         // Asynchronous initialization
@@ -716,7 +884,7 @@ class LibraryManager {
         if (itemsToSync.length === 0) return; // Nothing to sync
 
         try {
-            if (process.env.NODE_ENV === 'development') {
+            if (IS_DEV) {
                 console.log(`Syncing ${itemsToSync.length} items to backend...`);
             }
             const res = await fetch(`${this.apiBase}/library/sync`, {
@@ -731,7 +899,7 @@ class LibraryManager {
 
             if (res.ok) {
                 const data = await res.json();
-                if (process.env.NODE_ENV === 'development') {
+                if (IS_DEV) {
                     console.log("Sync result:", data);
                 }
                 
@@ -755,7 +923,7 @@ class LibraryManager {
     }
 
     setupSorting() {
-        const sortSelect = document.getElementById('sortLibrary');
+        const sortSelect = document.getElementById('library-sort');
         if (sortSelect) {
             sortSelect.addEventListener('change', (e) => {
                 this.sortLibrary(e.target.value);
@@ -818,7 +986,7 @@ class LibraryManager {
         // 1. Update Local State
         this.library[shelf].push(enrichedBook);
         this.saveLocally();
-        if (process.env.NODE_ENV === 'development') {
+        if (IS_DEV) {
             console.log(`Added ${book.volumeInfo.title} to ${shelf}`);
         }
 
@@ -940,7 +1108,7 @@ class LibraryManager {
             // 1. Update Local
             this.library[shelf] = this.library[shelf].filter(b => b.id !== id);
             this.saveLocally();
-            if (process.env.NODE_ENV === 'development') {
+            if (IS_DEV) {
                 console.log(`Removed book ${id} from ${shelf}`);
             }
 
@@ -1005,7 +1173,8 @@ class ThemeManager {
     constructor() {
         this.themeKey = 'bibliodrift_theme';
         this.toggleBtn = document.getElementById('themeToggle');
-        this.currentTheme = SafeStorage.get(this.themeKey) || 'day';
+        const stored = SafeStorage.get(this.themeKey);
+        this.currentTheme = stored === 'night' ? 'night' : 'light';
 
         this.init();
     }
@@ -1017,7 +1186,7 @@ class ThemeManager {
         this.applyTheme(this.currentTheme);
 
         this.toggleBtn.addEventListener('click', () => {
-            this.currentTheme = this.currentTheme === 'day' ? 'night' : 'day';
+            this.currentTheme = this.currentTheme === 'night' ? 'light' : 'night';
             this.applyTheme(this.currentTheme);
             SafeStorage.set(this.themeKey, this.currentTheme);
         });
@@ -1025,12 +1194,13 @@ class ThemeManager {
 
 
     applyTheme(theme) {
-        document.documentElement.setAttribute('data-theme', theme);
         const icon = this.toggleBtn.querySelector('i');
         if (theme === 'night') {
+            document.documentElement.setAttribute('data-theme', 'night');
             icon.classList.remove('fa-moon');
             icon.classList.add('fa-sun');
         } else {
+            document.documentElement.removeAttribute('data-theme');
             icon.classList.remove('fa-sun');
             icon.classList.add('fa-moon');
         }
@@ -1102,39 +1272,27 @@ class GenreManager {
         `;
 
         try {
-            // Fetch relevant books from Google Books API
-            // Using subject search and higher relevance
-            const keyParam = GOOGLE_API_KEY ? `&key=${GOOGLE_API_KEY}` : '';
-            const response = await fetch(`${API_BASE}?q=subject:${genre}&maxResults=20&langRestrict=en&orderBy=relevance${keyParam}`);
+            const client = window.GoogleBooksClient;
+            const data = client
+                ? await client.fetchVolumes(`subject:${genre}`, { maxResults: 20, extraParams: '&langRestrict=en&orderBy=relevance' })
+                : await (async () => {
+                    const keyParam = GOOGLE_API_KEY ? `&key=${GOOGLE_API_KEY}` : '';
+                    const response = await fetch(`${API_BASE}?q=subject:${genre}&maxResults=20&langRestrict=en&orderBy=relevance${keyParam}`);
+                    if (!response.ok) {
+                        throw new Error(`API Error: ${response.status}`);
+                    }
+                    return await response.json();
+                })();
 
-            if (response.ok) {
-                const data = await response.json();
-                const items = data.items || [];
-
-                if (items.length > 0) {
-                    this.renderBooks(items);
-                } else {
-                    this.booksGrid.innerHTML = `
-                        <div class="empty-state">
-                            <i class="fa-solid fa-box-open"></i>
-                            <p>Bookshelf Empty (No books found)</p>
-                        </div>`;
-                }
+            const items = data.items || [];
+            if (items.length > 0) {
+                this.renderBooks(items);
             } else {
-                console.warn(`API Error ${response.status}`);
-                this.booksGrid.innerHTML = `
-                    <div class="empty-state">
-                        <i class="fa-solid fa-triangle-exclamation"></i>
-                        <p>Bookshelf Empty (API Error: ${response.status})</p>
-                    </div>`;
+                this.renderBooks(getFallbackBooks(genre, 20));
             }
         } catch (error) {
             console.error('Error fetching genre books:', error);
-            this.booksGrid.innerHTML = `
-                <div class="empty-state">
-                    <i class="fa-solid fa-wifi"></i>
-                    <p>Bookshelf Empty (Connection Failed)</p>
-                </div>`;
+            this.renderBooks(getFallbackBooks(genre, 20));
         }
     }
 
@@ -1261,10 +1419,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             </section>`;
         renderer.renderCuratedSection(query, 'search-results', 20);
     } else if (document.getElementById('row-rainy')) {
-        renderer.renderCuratedSection('subject:mystery atmosphere', 'row-rainy');
-        renderer.renderCuratedSection('authors:amitav ghosh|authors:arundhati roy|subject:india', 'row-indian');
-        renderer.renderCuratedSection('subject:classic fiction', 'row-classics');
-        renderer.renderCuratedSection('subject:fiction', 'row-genre');
+        (async () => {
+    await renderer.renderCuratedSection('subject:mystery atmosphere', 'row-rainy');
+    await delay(1500);
+
+    await renderer.renderCuratedSection('authors:amitav ghosh|authors:arundhati roy|subject:india', 'row-indian');
+    await delay(1500);
+
+    await renderer.renderCuratedSection('subject:classic fiction', 'row-classics');
+
+    await renderer.renderCuratedSection('subject:fiction', 'row-genre');
+})();
     }
 
     // Re-rendering is now handled by libManager.init() asynchronously to ensure
@@ -1523,7 +1688,7 @@ document.addEventListener("click", (e) => {
     const scene = e.target.closest(".book-scene");
     if (!scene) return;
 
-    if (process.env.NODE_ENV === 'development') {
+        if (IS_DEV) {
         console.log("BOOK CLICK");
     }
 
@@ -1560,7 +1725,7 @@ const KeyboardShortcuts = {
     // Initialize keyboard event listener
     init() {
         document.addEventListener('keydown', (e) => this.handleKeyPress(e));
-        if (process.env.NODE_ENV === 'development') {
+        if (IS_DEV) {
             console.log('BiblioDrift Keyboard Shortcuts Initialized');
         }
     },
@@ -1586,56 +1751,56 @@ const KeyboardShortcuts = {
     executeAction(action) {
         switch (action) {
             case 'navigateNext':
-                if (process.env.NODE_ENV === 'development') {
+                if (IS_DEV) {
                     console.log('Navigating to next book...');
                 }
                 // TODO: Implement next book navigation
                 break;
             case 'navigatePrev':
-                if (process.env.NODE_ENV === 'development') {
+                if (IS_DEV) {
                     console.log('Navigating to previous book...');
                 }
                 // TODO: Implement previous book navigation
                 break;
             case 'selectBook':
-                if (process.env.NODE_ENV === 'development') {
+                if (IS_DEV) {
                     console.log('Selecting current book...');
                 }
                 // TODO: Implement book selection
                 break;
             case 'addToWantRead':
-                if (process.env.NODE_ENV === 'development') {
+                if (IS_DEV) {
                     console.log('Adding to Want to Read list...');
                 }
                 // TODO: Implement add to want read
                 break;
             case 'markCurrentlyReading':
-                if (process.env.NODE_ENV === 'development') {
+                if (IS_DEV) {
                     console.log('Marking as Currently Reading...');
                 }
                 // TODO: Implement mark as reading
                 break;
             case 'addToFavorites':
-                if (process.env.NODE_ENV === 'development') {
+                if (IS_DEV) {
                     console.log('Adding to Favorites...');
                 }
                 // TODO: Implement add to favorites
                 break;
             case 'closeModal':
-                if (process.env.NODE_ENV === 'development') {
+                if (IS_DEV) {
                     console.log('Closing modal...');
                 }
                 const modals = document.querySelectorAll('.modal, [role="dialog"]');
                 modals.forEach(modal => modal.style.display = 'none');
                 break;
             case 'showHelpMenu':
-                if (process.env.NODE_ENV === 'development') {
+                if (IS_DEV) {
                     console.log('Showing help menu...');
                 }
                 this.displayHelpMenu();
                 break;
             case 'focusSearch':
-                if (process.env.NODE_ENV === 'development') {
+                if (IS_DEV) {
                     console.log('Focusing search bar...');
                 }
                 const searchInput = document.querySelector('input[type="search"], input.search, [placeholder*="search" i]');

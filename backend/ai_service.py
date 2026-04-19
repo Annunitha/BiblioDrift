@@ -203,6 +203,7 @@ class LLMService:
         self.openai_client = None
         self.groq_client = None
         self.gemini_client = None
+        self.gemini_api_keys = []
         self.preferred_llm = os.getenv("PREFERRED_LLM", "groq").lower()
 
         self.config = {
@@ -252,13 +253,23 @@ class LLMService:
                 logger.error("Groq setup failed: %s", e)
 
     def _setup_gemini(self):
-        api_key = os.getenv("GEMINI_API_KEY")
-        if api_key and GEMINI_AVAILABLE:
-            try:
-                self.gemini_client = genai.Client(api_key=api_key)
-                logger.info("Gemini ready: %s", self.config["gemini_model"])
-            except Exception as e:
-                logger.error("Gemini setup failed: %s", e)
+        self.gemini_api_keys = [
+            key.strip()
+            for key in [os.getenv("GEMINI_API_KEY"), os.getenv("GEMINI_API_KEY_SECONDARY")]
+            if key and key.strip()
+        ]
+        if self.gemini_api_keys and GEMINI_AVAILABLE:
+            for index, api_key in enumerate(self.gemini_api_keys, start=1):
+                try:
+                    self.gemini_client = genai.Client(api_key=api_key)
+                    logger.info("Gemini ready using key %d: %s", index, self.config["gemini_model"])
+                    return
+                except Exception as e:
+                    logger.warning("Gemini setup failed for key %d: %s", index, e)
+            self.gemini_client = None
+
+    def _gemini_candidates(self):
+        return self.gemini_api_keys or [os.getenv("GEMINI_API_KEY")]
 
     def is_available(self) -> bool:
         return any([self.openai_client, self.groq_client, self.gemini_client])
@@ -272,6 +283,7 @@ class LLMService:
         retry_count: int = 0,
     ) -> Optional[str]:
         if not self.is_available():
+            logger.warning("No LLM service available")
             return None
         if max_tokens is None:
             max_tokens = self.config["default_max_tokens"]
@@ -377,21 +389,31 @@ class LLMService:
             return None
 
     def _generate_with_gemini(self, prompt: str, max_tokens: int) -> Optional[str]:
-        try:
-            resp = self.gemini_client.models.generate_content(
-                model=self.config["gemini_model"],
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    max_output_tokens=min(max_tokens, self.config["gemini_max_tokens"]),
-                    temperature=self.config["gemini_temperature"],
-                ),
-            )
-            return resp.text.strip()
-        except Exception as e:
-            logger.error("Gemini single-turn failed: %s", e)
-            if self._is_retryable(e):
-                raise
-            return None
+        last_error = None
+        for index, api_key in enumerate(self._gemini_candidates(), start=1):
+            if not api_key:
+                continue
+            try:
+                client = genai.Client(api_key=api_key)
+                resp = client.models.generate_content(
+                    model=self.config["gemini_model"],
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        max_output_tokens=min(max_tokens, self.config["gemini_max_tokens"]),
+                        temperature=self.config["gemini_temperature"],
+                    ),
+                )
+                self.gemini_client = client
+                logger.info("Gemini single-turn succeeded with key %d", index)
+                return resp.text.strip()
+            except Exception as e:
+                last_error = e
+                logger.warning("Gemini single-turn failed with key %d: %s", index, e)
+                if not self._is_retryable(e):
+                    continue
+        if last_error and self._is_retryable(last_error):
+            raise last_error
+        return None
 
     # -- provider implementations (multi-turn) --
 
@@ -433,15 +455,31 @@ class LLMService:
         for msg in messages:
             role = "user" if msg["role"] == "user" else "model"
             gemini_messages.append({"role": role, "parts": [{"text": msg["content"]}]})
-        resp = self.gemini_client.models.generate_content(
-            model=self.config["gemini_model"],
-            contents=gemini_messages,
-            config=types.GenerateContentConfig(
-                max_output_tokens=min(max_tokens, self.config["gemini_max_tokens"]),
-                temperature=self.config["gemini_temperature"],
-            ),
-        )
-        return resp.text.strip()
+        last_error = None
+        for index, api_key in enumerate(self._gemini_candidates(), start=1):
+            if not api_key:
+                continue
+            try:
+                client = genai.Client(api_key=api_key)
+                resp = client.models.generate_content(
+                    model=self.config["gemini_model"],
+                    contents=gemini_messages,
+                    config=types.GenerateContentConfig(
+                        max_output_tokens=min(max_tokens, self.config["gemini_max_tokens"]),
+                        temperature=self.config["gemini_temperature"],
+                    ),
+                )
+                self.gemini_client = client
+                logger.info("Gemini chat succeeded with key %d", index)
+                return resp.text.strip()
+            except Exception as e:
+                last_error = e
+                logger.warning("Gemini chat failed with key %d: %s", index, e)
+                if self._is_retryable(e):
+                    continue
+        if last_error and self._is_retryable(last_error):
+            raise last_error
+        return None
 
     # -- helpers --
 
