@@ -8,17 +8,43 @@
   <link rel="stylesheet" href="../css/style_main.css"/>
   <link rel="stylesheet" href="../css/style-responsive.css"/>
   <style>
+    :root {
+      --rb-bg: #f5f0e8;
+      --rb-card: #ffffff;
+      --rb-border: #d4c9b0;
+      --rb-input-bg: #faf7f2;
+      --rb-text: #2c2416;
+      --rb-text-muted: #6b5d4f;
+      --rb-text-secondary: #4a3f35;
+      --rb-accent: #8b6914;
+      --rb-btn-text: #ffffff;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --rb-bg: #0a0a0f;
+        --rb-card: #12121a;
+        --rb-border: #2a2a3e;
+        --rb-input-bg: #1a1a28;
+        --rb-text: #e8e0d0;
+        --rb-text-muted: #9a8e7e;
+        --rb-text-secondary: #c8bfb0;
+        --rb-accent: #c9a84c;
+        --rb-btn-text: #0a0a0f;
+      }
+    }
+
     .request-section {
       min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 2rem;
-      background: var(--bg-primary, #0a0a0f);
+      background: var(--rb-bg);
     }
     .request-card {
-      background: var(--card-bg, #12121a);
-      border: 1px solid var(--border-color, #2a2a3e);
+      background: var(--rb-card);
+      border: 1px solid var(--rb-border);
       border-radius: 16px;
       padding: 2.5rem;
       width: 100%;
@@ -26,12 +52,12 @@
     }
     .request-card h2 {
       font-family: 'Georgia', serif;
-      color: var(--accent-gold, #c9a84c);
+      color: var(--rb-accent);
       font-size: 1.8rem;
       margin-bottom: 0.4rem;
     }
     .request-card p.subtitle {
-      color: var(--text-muted, #888);
+      color: var(--rb-text-muted);
       font-size: 0.9rem;
       margin-bottom: 1.8rem;
     }
@@ -40,29 +66,39 @@
     }
     .form-group label {
       display: block;
-      color: var(--text-secondary, #ccc);
+      color: var(--rb-text-secondary);
       font-size: 0.85rem;
       margin-bottom: 0.4rem;
       letter-spacing: 0.03em;
+      font-weight: 600;
     }
     .form-group input,
     .form-group select,
     .form-group textarea {
       width: 100%;
-      background: var(--input-bg, #1a1a28);
-      border: 1px solid var(--border-color, #2a2a3e);
+      background: var(--rb-input-bg);
+      border: 1px solid var(--rb-border);
       border-radius: 8px;
       padding: 0.7rem 1rem;
-      color: var(--text-primary, #eee);
+      color: var(--rb-text);
       font-size: 0.95rem;
       outline: none;
       transition: border-color 0.2s;
       box-sizing: border-box;
     }
+    .form-group input::placeholder,
+    .form-group textarea::placeholder {
+      color: var(--rb-text-muted);
+      opacity: 1;
+    }
     .form-group input:focus,
     .form-group select:focus,
     .form-group textarea:focus {
-      border-color: var(--accent-gold, #c9a84c);
+      border-color: var(--rb-accent);
+    }
+    .form-group select option {
+      background: var(--rb-card);
+      color: var(--rb-text);
     }
     .form-group textarea {
       resize: vertical;
@@ -71,8 +107,8 @@
     .submit-btn {
       width: 100%;
       padding: 0.85rem;
-      background: var(--accent-gold, #c9a84c);
-      color: #0a0a0f;
+      background: var(--rb-accent);
+      color: var(--rb-btn-text);
       border: none;
       border-radius: 8px;
       font-size: 1rem;
@@ -92,19 +128,19 @@
       margin-bottom: 1rem;
     }
     .success-msg h3 {
-      color: var(--accent-gold, #c9a84c);
+      color: var(--rb-accent);
       font-family: 'Georgia', serif;
       font-size: 1.4rem;
       margin-bottom: 0.5rem;
     }
     .success-msg p {
-      color: var(--text-muted, #888);
+      color: var(--rb-text-muted);
       font-size: 0.9rem;
     }
     .back-link {
       display: inline-block;
       margin-top: 1.5rem;
-      color: var(--accent-gold, #c9a84c);
+      color: var(--rb-accent);
       text-decoration: none;
       font-size: 0.9rem;
     }
