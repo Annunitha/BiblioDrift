@@ -3941,3 +3941,152 @@ window.addEventListener('offline', handleConnectivityChange);
 
 // Run a status check right away on startup in case the user loads the app while already disconnected
 document.addEventListener('DOMContentLoaded', handleConnectivityChange);
+
+function showForgotResetLink(resetUrl) {
+    const box = document.getElementById('forgotResetLinkBox');
+    if (!box || !resetUrl) return;
+    box.style.display = 'block';
+    box.innerHTML = `
+        <strong>Development reset link</strong> (no email was sent):<br>
+        <a href="${resetUrl}">Open link to set a new password</a>
+    `;
+}
+
+async function handleForgotPassword(event) {
+    if (event) event.preventDefault();
+    const btn = document.getElementById('forgotSubmitBtn');
+    const emailInput = document.getElementById('forgotEmail');
+    const linkBox = document.getElementById('forgotResetLinkBox');
+    const email = emailInput?.value?.trim() || '';
+    const originalText = btn ? btn.textContent : 'Send reset link';
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        if (typeof showToast === 'function') showToast('Enter a valid email address', 'error');
+        else alert('Enter a valid email address');
+        return;
+    }
+
+    if (linkBox) {
+        linkBox.style.display = 'none';
+        linkBox.innerHTML = '';
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+    }
+
+    try {
+        const res = await fetch(`${MOOD_API_BASE}/auth/forgot-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ email }),
+        });
+        const data = await res.json();
+        const message = data.message
+            || 'If an account exists for that email, password reset instructions have been sent.';
+
+        if (res.ok) {
+            if (data.reset_url) {
+                showForgotResetLink(data.reset_url);
+                console.info('[Dev] Password reset link:', data.reset_url);
+                if (typeof showToast === 'function') {
+                    showToast('No email sent — use the reset link shown on this page.', 'info');
+                }
+            } else if (typeof showToast === 'function') {
+                showToast(message, 'success');
+            } else {
+                alert(message + '\n\n(No email is sent by the server yet.)');
+            }
+        } else {
+            const err = data.error || data.message || 'Unable to send reset link.';
+            if (typeof showToast === 'function') showToast(err, 'error');
+            else alert(err);
+        }
+    } catch (error) {
+        console.error('Forgot password failed:', error);
+        if (typeof showToast === 'function') {
+            showToast('Could not reach the server. Use http://127.0.0.1:5500 (not file://) and ensure Flask is running.', 'error');
+        } else {
+            alert('Network error. Use http://127.0.0.1:5500 and ensure the backend is running on port 5000.');
+        }
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    }
+}
+
+window.handleForgotPassword = handleForgotPassword;
+
+async function handleResetPassword(event) {
+    if (event) event.preventDefault();
+    const btn = document.getElementById('resetSubmitBtn');
+    const newPassword = document.getElementById('newPassword')?.value || '';
+    const confirmPassword = document.getElementById('confirmPassword')?.value || '';
+    const token = new URLSearchParams(window.location.search).get('token') || '';
+    const originalText = btn ? btn.textContent : 'Reset password';
+
+    if (newPassword.length < 8) {
+        if (typeof showToast === 'function') showToast('Password must be at least 8 characters.', 'error');
+        else alert('Password must be at least 8 characters.');
+        return;
+    }
+
+    if (newPassword !== confirmPassword) {
+        if (typeof showToast === 'function') showToast('Passwords do not match.', 'error');
+        else alert('Passwords do not match.');
+        return;
+    }
+
+    if (!token) {
+        if (typeof showToast === 'function') showToast('Invalid or missing reset link.', 'error');
+        else alert('Invalid or missing reset link.');
+        return;
+    }
+
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Updating...';
+    }
+
+    try {
+        const res = await fetch(`${MOOD_API_BASE}/auth/reset-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ token, password: newPassword }),
+        });
+        const data = await res.json();
+        const message = data.message;
+
+        if (res.ok) {
+            if (typeof showToast === 'function') showToast(message || 'Password updated.', 'success');
+            else alert(message || 'Password updated.');
+
+            const url = new URL(window.location.href);
+            url.searchParams.delete('token');
+            setTimeout(() => {
+                window.location.href = url.pathname;
+            }, 1200);
+        } else {
+            const err = data.error || data.message || 'Unable to reset password.';
+            if (typeof showToast === 'function') showToast(err, 'error');
+            else alert(err);
+        }
+    } catch (error) {
+        console.error('Reset password failed:', error);
+        if (typeof showToast === 'function') showToast('Network error. Please try again.', 'error');
+        else alert('Network error. Please try again.');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    }
+}
+
+window.handleResetPassword = handleResetPassword;

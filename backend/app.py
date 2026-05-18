@@ -59,6 +59,8 @@ from validators import (
     SyncLibraryRequest,
     RegisterRequest,
     LoginRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
     SetGoalRequest,
     GetStatsRequest,
     CollectionRequest,
@@ -72,9 +74,15 @@ from validators import (
     validate_jwt_secret,
     is_production_mode
 )
+from password_reset_service import (
+    FORGOT_PASSWORD_MESSAGE,
+    request_password_reset,
+    reset_password_with_token,
+)
 from collections import defaultdict, deque
 from math import ceil
 from time import time
+from urllib.parse import quote
 from error_responses import (
     ErrorCodes, error_response, success_response,
     validation_error, missing_fields_error, invalid_json_error,
@@ -1739,6 +1747,75 @@ def logout():
     return resp, status
 
 
+@app.route('/api/v1/auth/forgot-password', methods=['POST'])
+@csrf.exempt
+@limiter.limit("5 per minute")
+def forgot_password():
+    """Request a password reset link (always returns a generic success message)."""
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            return invalid_json_error()
+
+        is_valid, validated_data = validate_request(ForgotPasswordRequest, data)
+        if not is_valid:
+            return jsonify(validated_data), 400
+
+        plain_token = None
+        try:
+            plain_token = request_password_reset(validated_data.email)
+        except SQLAlchemyError as e:
+            logger.error("forgot-password database error: %s", e, exc_info=True)
+
+        response_data = {"message": FORGOT_PASSWORD_MESSAGE}
+
+        if plain_token and app_config.is_development():
+            frontend_base = os.getenv(
+                'FRONTEND_ORIGIN',
+                'http://127.0.0.1:5500',
+            ).rstrip('/')
+            response_data["reset_url"] = (
+                f"{frontend_base}/pages/auth.html?token={quote(plain_token)}"
+            )
+            logger.info(
+                "Dev password reset link for %s: %s",
+                validated_data.email,
+                response_data["reset_url"],
+            )
+
+        return success_response(data=response_data)
+    except Exception as e:
+        logger.error("forgot-password failed: %s", e, exc_info=True)
+        return success_response(data={"message": FORGOT_PASSWORD_MESSAGE})
+
+
+@app.route('/api/v1/auth/reset-password', methods=['POST'])
+@csrf.exempt
+@limiter.limit("5 per minute")
+def reset_password():
+    """Set a new password using a valid reset token."""
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            return invalid_json_error()
+
+        is_valid, validated_data = validate_request(ResetPasswordRequest, data)
+        if not is_valid:
+            return jsonify(validated_data), 400
+
+        ok, message = reset_password_with_token(
+            validated_data.token,
+            validated_data.password,
+        )
+        if not ok:
+            return jsonify({"error": message}), 400
+
+        return success_response(data={"message": message})
+    except Exception as e:
+        logger.error("reset-password failed: %s", e, exc_info=True)
+        return internal_error("Unable to reset password.")
+
+
 @app.route('/api/v1/auth/verify', methods=['GET'])
 @jwt_required()
 def verify_auth_session():
@@ -2491,6 +2568,8 @@ from validators import (
     SyncLibraryRequest,
     RegisterRequest,
     LoginRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
     SetGoalRequest,
     GetStatsRequest,
     CollectionRequest,
@@ -2504,9 +2583,15 @@ from validators import (
     validate_jwt_secret,
     is_production_mode
 )
+from password_reset_service import (
+    FORGOT_PASSWORD_MESSAGE,
+    request_password_reset,
+    reset_password_with_token,
+)
 from collections import defaultdict, deque
 from math import ceil
 from time import time
+from urllib.parse import quote
 from error_responses import (
     ErrorCodes, error_response, success_response,
     validation_error, missing_fields_error, invalid_json_error,
@@ -3359,6 +3444,7 @@ def remove_from_library(item_id):
 
 
 db.init_app(app)
+migrate = Migrate(app, db)
 price_tracker = get_price_tracker(db)
 
 
@@ -3737,6 +3823,68 @@ def logout():
     resp, status = success_response(message="Logout successful")
     unset_jwt_cookies(resp)
     return resp, status
+
+
+@app.route('/api/v1/auth/forgot-password', methods=['POST'])
+@limiter.limit("5 per minute")
+def forgot_password():
+    """Request a password reset link (always returns a generic success message)."""
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            return invalid_json_error()
+
+        is_valid, validated_data = validate_request(ForgotPasswordRequest, data)
+        if not is_valid:
+            return jsonify(validated_data), 400
+
+        plain_token = request_password_reset(validated_data.email)
+        response_data = {"message": FORGOT_PASSWORD_MESSAGE}
+
+        if plain_token and app_config.is_development():
+            frontend_base = os.getenv(
+                'FRONTEND_ORIGIN',
+                'http://127.0.0.1:5500',
+            ).rstrip('/')
+            response_data["reset_url"] = (
+                f"{frontend_base}/pages/auth.html?token={quote(plain_token)}"
+            )
+            logger.info(
+                "Dev password reset link for %s: %s",
+                validated_data.email,
+                response_data["reset_url"],
+            )
+
+        return success_response(data=response_data)
+    except Exception as e:
+        logger.error("forgot-password failed: %s", e, exc_info=True)
+        return internal_error("Unable to process password reset request.")
+
+
+@app.route('/api/v1/auth/reset-password', methods=['POST'])
+@limiter.limit("5 per minute")
+def reset_password():
+    """Set a new password using a valid reset token."""
+    try:
+        data = request.get_json(silent=True)
+        if data is None:
+            return invalid_json_error()
+
+        is_valid, validated_data = validate_request(ResetPasswordRequest, data)
+        if not is_valid:
+            return jsonify(validated_data), 400
+
+        ok, message = reset_password_with_token(
+            validated_data.token,
+            validated_data.password,
+        )
+        if not ok:
+            return jsonify({"error": message}), 400
+
+        return success_response(data={"message": message})
+    except Exception as e:
+        logger.error("reset-password failed: %s", e, exc_info=True)
+        return internal_error("Unable to reset password.")
 
 
 # ==================== READING STATS ENDPOINTS ====================
