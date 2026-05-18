@@ -88,6 +88,62 @@ class TestJSONParsing:
         assert error is None
         assert data == [{"id": 1}]
 
+    def test_safe_get_json_validates_required_fields(self):
+        """safe_get_json should enforce required fields when a schema is provided."""
+        payload = json.dumps({"user_id": 123, "message": "hello"})
+
+        with patch("backend.security_parsers.request", self._mock_json_request(payload)):
+            success, data, error = safe_get_json(
+                force=True,
+                fields={"user_id": int, "message": str},
+            )
+
+        assert success
+        assert error is None
+        assert data == {"user_id": 123, "message": "hello"}
+
+    def test_safe_get_json_rejects_missing_required_fields(self):
+        """safe_get_json should fail fast when a required field is absent."""
+        payload = json.dumps({"user_id": 123})
+
+        with patch("backend.security_parsers.request", self._mock_json_request(payload)):
+            success, data, error = safe_get_json(
+                force=True,
+                fields={"user_id": int, "message": str},
+            )
+
+        assert not success
+        assert data is None
+        assert error == "Missing required field: message"
+
+    def test_safe_get_json_rejects_extra_fields_by_default(self):
+        """safe_get_json should reject unexpected keys unless explicitly allowed."""
+        payload = json.dumps({"user_id": 123, "message": "hello", "extra": True})
+
+        with patch("backend.security_parsers.request", self._mock_json_request(payload)):
+            success, data, error = safe_get_json(
+                force=True,
+                fields={"user_id": int, "message": str},
+            )
+
+        assert not success
+        assert data is None
+        assert error == "Unexpected field(s): extra"
+
+    def test_safe_get_json_rejects_oversized_arrays(self):
+        """safe_get_json should reject shallow payloads with huge arrays."""
+        payload = json.dumps({"data": [1, 2, 3, 4, 5]})
+
+        with patch("backend.security_parsers.request", self._mock_json_request(payload)):
+            success, data, error = safe_get_json(
+                force=True,
+                max_array_len=3,
+            )
+
+        assert not success
+        assert data is None
+        assert error == "JSON array has too many elements (max: 3)"
+
     def test_validate_depth_handles_deep_payload_without_recursion_error(self):
         """Iterative traversal should reject deep payloads without recursion overhead."""
         nested = {}
