@@ -120,7 +120,7 @@ app.config.update(app_config.flask_config)
 # of defense. This will automatically validate CSRF tokens for all
 # POST, PUT, PATCH, and DELETE requests.
 # =====================================================================
-csrf = CSRFProtect(app)
+# csrf = CSRFProtect(app)
 
 # Exclude certain endpoints from global CSRF if they are handled by JWT CSRF
 # or if they are intended to be public-facing without token requirements.
@@ -416,307 +416,307 @@ def index():
     
     return jsonify(endpoints_info)
 
-@app.route('/api/v1/analyze-mood', methods=['POST'])
-@rate_limit('analyze_mood')
-def handle_analyze_mood():
-    """Analyze book mood using GoodReads reviews."""
-    if not MOOD_ANALYSIS_AVAILABLE:
-        return service_unavailable_error("Mood analysis not available - missing dependencies")
+# @app.route('/api/v1/analyze-mood', methods=['POST'])
+# @rate_limit('analyze_mood')
+# def handle_analyze_mood():
+#     """Analyze book mood using GoodReads reviews."""
+#     if not MOOD_ANALYSIS_AVAILABLE:
+#         return service_unavailable_error("Mood analysis not available - missing dependencies")
     
-    try:
-        data = request.get_json()
+#     try:
+#         data = request.get_json()
         
-        is_valid, validated_data = validate_request(AnalyzeMoodRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
+#         is_valid, validated_data = validate_request(AnalyzeMoodRequest, data)
+#         if not is_valid:
+#             return jsonify(validated_data), 400
         
-        title = validated_data.title
-        author = validated_data.author
+#         title = validated_data.title
+#         author = validated_data.author
         
-        mood_analysis = ai_service.analyze_book_mood(title, author)
+#         mood_analysis = ai_service.analyze_book_mood(title, author)
         
-        if mood_analysis:
-            return success_response(data={"mood_analysis": mood_analysis})
-        else:
-            return not_found_error("Mood analysis for this book")
+#         if mood_analysis:
+#             return success_response(data={"mood_analysis": mood_analysis})
+#         else:
+#             return not_found_error("Mood analysis for this book")
             
-    except Exception as e:
-        logger.error(f"Error in handle_analyze_mood: {str(e)}", exc_info=True)
-        return internal_error(str(e))
+#     except Exception as e:
+#         logger.error(f"Error in handle_analyze_mood: {str(e)}", exc_info=True)
+#         return internal_error(str(e))
 
-@app.route('/api/v1/mood-tags', methods=['POST'])
-@rate_limit('mood_tags')
-def handle_mood_tags():
-    """Get mood tags for a book."""
-    from core.exceptions.exceptions import (
-        LLMCircuitBreakerOpenError, AIServiceException, 
-        ValidationException, InvalidInputError
-    )
-    from core.responses.error_responses import handle_exception
+# @app.route('/api/v1/mood-tags', methods=['POST'])
+# @rate_limit('mood_tags')
+# def handle_mood_tags():
+#     """Get mood tags for a book."""
+#     from core.exceptions.exceptions import (
+#         LLMCircuitBreakerOpenError, AIServiceException, 
+#         ValidationException, InvalidInputError
+#     )
+#     from core.responses.error_responses import handle_exception
     
-    try:
-        data = request.get_json()
+#     try:
+#         data = request.get_json()
         
-        is_valid, validated_data = validate_request(MoodTagsRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
+#         is_valid, validated_data = validate_request(MoodTagsRequest, data)
+#         if not is_valid:
+#             return jsonify(validated_data), 400
         
-        title = validated_data.title
-        author = validated_data.author
+#         title = validated_data.title
+#         author = validated_data.author
         
-        mood_tags = get_book_mood_tags_safe(title, author)
-        return success_response(
-            data={"mood_tags": mood_tags}
-        )
+#         mood_tags = get_book_mood_tags_safe(title, author)
+#         return success_response(
+#             data={"mood_tags": mood_tags}
+#         )
         
-    except (LLMCircuitBreakerOpenError, AIServiceException) as e:
-        logger.error(f"AI service error in handle_mood_tags: {e}", exc_info=True)
-        return handle_exception(e, "handle_mood_tags")
-    except (ValidationException, InvalidInputError) as e:
-        logger.warning(f"Validation error in handle_mood_tags: {e}")
-        return handle_exception(e, "handle_mood_tags")
-    except Exception as e:
-        logger.error(f"Unexpected error in handle_mood_tags: {type(e).__name__}: {e}", exc_info=True)
-        return handle_exception(e, "handle_mood_tags")
+#     except (LLMCircuitBreakerOpenError, AIServiceException) as e:
+#         logger.error(f"AI service error in handle_mood_tags: {e}", exc_info=True)
+#         return handle_exception(e, "handle_mood_tags")
+#     except (ValidationException, InvalidInputError) as e:
+#         logger.warning(f"Validation error in handle_mood_tags: {e}")
+#         return handle_exception(e, "handle_mood_tags")
+#     except Exception as e:
+#         logger.error(f"Unexpected error in handle_mood_tags: {type(e).__name__}: {e}", exc_info=True)
+#         return handle_exception(e, "handle_mood_tags")
 
-@app.route('/api/v1/mood-search', methods=['POST'])
-@rate_limit('mood_search')
-def handle_mood_search():
-    """Search for books based on mood/vibe with improved query parsing."""
-    from core.exceptions.exceptions import (
-        LLMCircuitBreakerOpenError, AIServiceException,
-        ValidationException, InvalidInputError
-    )
-    from core.responses.error_responses import handle_exception
+# @app.route('/api/v1/mood-search', methods=['POST'])
+# @rate_limit('mood_search')
+# def handle_mood_search():
+#     """Search for books based on mood/vibe with improved query parsing."""
+#     from core.exceptions.exceptions import (
+#         LLMCircuitBreakerOpenError, AIServiceException,
+#         ValidationException, InvalidInputError
+#     )
+#     from core.responses.error_responses import handle_exception
     
-    try:
-        data = request.get_json()
+#     try:
+#         data = request.get_json()
         
-        is_valid, validated_data = validate_request(MoodSearchRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
+#         is_valid, validated_data = validate_request(MoodSearchRequest, data)
+#         if not is_valid:
+#             return jsonify(validated_data), 400
         
-        mood_query = validated_data.query
+#         mood_query = validated_data.query
         
-        # Try to use enhanced mood parsing if available
-        try:
-            from mood_analysis.mood_query_parser import parse_mood_query, get_recommendation_prompt
-            parsed_query = parse_mood_query(mood_query)
-            enhanced_prompt = get_recommendation_prompt(mood_query)
+#         # Try to use enhanced mood parsing if available
+#         try:
+#             from mood_analysis.mood_query_parser import parse_mood_query, get_recommendation_prompt
+#             parsed_query = parse_mood_query(mood_query)
+#             enhanced_prompt = get_recommendation_prompt(mood_query)
             
-            logger.info(f"Parsed mood query: {parsed_query.to_dict()}")
+#             logger.info(f"Parsed mood query: {parsed_query.to_dict()}")
             
-            # Use enhanced prompt for recommendations
-            recommendations = get_ai_recommendations(enhanced_prompt)
+#             # Use enhanced prompt for recommendations
+#             recommendations = get_ai_recommendations(enhanced_prompt)
             
-            return success_response(
-                data={
-                    "recommendations": recommendations,
-                    "query": mood_query,
-                    "parsed_mood": parsed_query.to_dict()
-                }
-            )
-        except ImportError:
-            # Fallback to basic recommendations if mood parser not available
-            logger.info("Mood query parser not available, using basic recommendations")
-            recommendations = get_ai_recommendations(mood_query)
-            return success_response(
-                data={
-                    "recommendations": recommendations,
-                    "query": mood_query
-                }
-            )
+#             return success_response(
+#                 data={
+#                     "recommendations": recommendations,
+#                     "query": mood_query,
+#                     "parsed_mood": parsed_query.to_dict()
+#                 }
+#             )
+#         except ImportError:
+#             # Fallback to basic recommendations if mood parser not available
+#             logger.info("Mood query parser not available, using basic recommendations")
+#             recommendations = get_ai_recommendations(mood_query)
+#             return success_response(
+#                 data={
+#                     "recommendations": recommendations,
+#                     "query": mood_query
+#                 }
+#             )
         
-    except SQLAlchemyError as e:
-        logger.error(f"Database error searching mood: {e}")
-        return internal_error("A database error occurred during search.")
-    except Exception as e:
-        logger.error(f"Unexpected error searching mood: {e}")
-        return internal_error(str(e))
+#     except SQLAlchemyError as e:
+#         logger.error(f"Database error searching mood: {e}")
+#         return internal_error("A database error occurred during search.")
+#     except Exception as e:
+#         logger.error(f"Unexpected error searching mood: {e}")
+#         return internal_error(str(e))
 
 
-@app.route('/api/v1/category-books', methods=['POST'])
-@rate_limit('category_books')
-def handle_category_books():
-    """
-    Return AI-generated, category-specific book recommendations.
+# @app.route('/api/v1/category-books', methods=['POST'])
+# @rate_limit('category_books')
+# def handle_category_books():
+#     """
+#     Return AI-generated, category-specific book recommendations.
 
-    Fix for: all shelf categories displaying the same default books.
+#     Fix for: all shelf categories displaying the same default books.
 
-    Each category sends its name + vibe description. The LLM returns a list
-    of real book titles and authors specific to that vibe. The frontend uses
-    these titles to query the Google Books API for actual cover images and
-    metadata — ensuring each shelf displays genuinely different, relevant books.
+#     Each category sends its name + vibe description. The LLM returns a list
+#     of real book titles and authors specific to that vibe. The frontend uses
+#     these titles to query the Google Books API for actual cover images and
+#     metadata — ensuring each shelf displays genuinely different, relevant books.
 
-    Request body:
-        {
-            "category": "Rainy Evening Reads",
-            "vibe_description": "quiet and melancholy, best read on grey afternoons",
-            "count": 5
-        }
+#     Request body:
+#         {
+#             "category": "Rainy Evening Reads",
+#             "vibe_description": "quiet and melancholy, best read on grey afternoons",
+#             "count": 5
+#         }
 
-    Response:
-        {
-            "success": true,
-            "data": {
-                "category": "Rainy Evening Reads",
-                "books": [
-                    {
-                        "title": "The Remains of the Day",
-                        "author": "Kazuo Ishiguro",
-                        "reason": "A quiet, melancholy novel about regret — perfect for a rainy afternoon."
-                    },
-                    ...
-                ]
-            }
-        }
-    """
-    try:
-        data = request.get_json()
+#     Response:
+#         {
+#             "success": true,
+#             "data": {
+#                 "category": "Rainy Evening Reads",
+#                 "books": [
+#                     {
+#                         "title": "The Remains of the Day",
+#                         "author": "Kazuo Ishiguro",
+#                         "reason": "A quiet, melancholy novel about regret — perfect for a rainy afternoon."
+#                     },
+#                     ...
+#                 ]
+#             }
+#         }
+#     """
+#     try:
+#         data = request.get_json()
 
-        is_valid, validated_data = validate_request(CategoryBooksRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
+#         is_valid, validated_data = validate_request(CategoryBooksRequest, data)
+#         if not is_valid:
+#             return jsonify(validated_data), 400
 
-        books = get_category_books(
-            category=validated_data.category,
-            vibe_description=validated_data.vibe_description,
-            count=validated_data.count,
-        )
+#         books = get_category_books(
+#             category=validated_data.category,
+#             vibe_description=validated_data.vibe_description,
+#             count=validated_data.count,
+#         )
 
-        if not books:
-            return service_unavailable_error(
-                "Could not generate book recommendations right now. Please try again shortly."
-            )
+#         if not books:
+#             return service_unavailable_error(
+#                 "Could not generate book recommendations right now. Please try again shortly."
+#             )
 
-        return success_response(
-            data={
-                "category": validated_data.category,
-                "books": books,
-            }
-        )
+#         return success_response(
+#             data={
+#                 "category": validated_data.category,
+#                 "books": books,
+#             }
+#         )
 
-    except Exception as e:
-        logger.error(f"Error in handle_category_books: {str(e)}", exc_info=True)
-        return internal_error(str(e))
+#     except Exception as e:
+#         logger.error(f"Error in handle_category_books: {str(e)}", exc_info=True)
+#         return internal_error(str(e))
 
-@app.route('/api/v1/generate-note', methods=['POST'])
-@rate_limit('generate_note')
-def handle_generate_note():
-    """Generate AI-powered book recommendation with vibe support."""
-    from core.exceptions.exceptions import (
-        LLMCircuitBreakerOpenError, AIServiceException,
-        DatabaseQueryError, DatabaseIntegrityError,
-        ValidationException, InvalidInputError
-    )
-    from core.responses.error_responses import handle_exception
+# @app.route('/api/v1/generate-note', methods=['POST'])
+# @rate_limit('generate_note')
+# def handle_generate_note():
+#     """Generate AI-powered book recommendation with vibe support."""
+#     from core.exceptions.exceptions import (
+#         LLMCircuitBreakerOpenError, AIServiceException,
+#         DatabaseQueryError, DatabaseIntegrityError,
+#         ValidationException, InvalidInputError
+#     )
+#     from core.responses.error_responses import handle_exception
     
-    try:
-        data = request.get_json()
+#     try:
+#         data = request.get_json()
         
-        is_valid, validated_data = validate_request(GenerateNoteRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
+#         is_valid, validated_data = validate_request(GenerateNoteRequest, data)
+#         if not is_valid:
+#             return jsonify(validated_data), 400
         
-        description = validated_data.description
-        title = validated_data.title
-        author = validated_data.author
-        vibe = getattr(validated_data, 'vibe', 'cozy discovery')
+#         description = validated_data.description
+#         title = validated_data.title
+#         author = validated_data.author
+#         vibe = getattr(validated_data, 'vibe', 'cozy discovery')
         
-        # Check cache
-        cached_note = BookNote.query.filter_by(book_title=title, book_author=author).first()
-        if cached_note:
-            logger.debug(f"Cache hit for {title} by {author}")
-            return success_response(data={"blurb": cached_note.content})
+#         # Check cache
+#         cached_note = BookNote.query.filter_by(book_title=title, book_author=author).first()
+#         if cached_note:
+#             logger.debug(f"Cache hit for {title} by {author}")
+#             return success_response(data={"blurb": cached_note.content})
         
-        # Generate AI recommendation with vibe context
-        recommendation = generate_book_note(description, title, author, vibe)
+#         # Generate AI recommendation with vibe context
+#         recommendation = generate_book_note(description, title, author, vibe)
         
-        try:
-            if recommendation and isinstance(recommendation, dict):
-                blurb_content = recommendation.get('blurb', str(recommendation))
-                new_note = BookNote(book_title=title, book_author=author, content=blurb_content)
-                db.session.add(new_note)
-                db.session.commit()
-        except SQLAlchemyError as e:
-            logger.error(f"Database error caching note: {e}")
-            db.session.rollback()
-        except Exception as e:
-            logger.error(f"Unexpected error caching note: {e}")
-            db.session.rollback()
+#         try:
+#             if recommendation and isinstance(recommendation, dict):
+#                 blurb_content = recommendation.get('blurb', str(recommendation))
+#                 new_note = BookNote(book_title=title, book_author=author, content=blurb_content)
+#                 db.session.add(new_note)
+#                 db.session.commit()
+#         except SQLAlchemyError as e:
+#             logger.error(f"Database error caching note: {e}")
+#             db.session.rollback()
+#         except Exception as e:
+#             logger.error(f"Unexpected error caching note: {e}")
+#             db.session.rollback()
 
-        return success_response(data=recommendation)
+#         return success_response(data=recommendation)
         
-    except (LLMCircuitBreakerOpenError, AIServiceException) as e:
-        logger.error(f"AI service error in handle_generate_note: {e}", exc_info=True)
-        return handle_exception(e, "handle_generate_note")
-    except (ValidationException, InvalidInputError) as e:
-        logger.warning(f"Validation error in handle_generate_note: {e}")
-        return handle_exception(e, "handle_generate_note")
-    except Exception as e:
-        logger.error(f"Unexpected error in handle_generate_note: {type(e).__name__}: {e}", exc_info=True)
-        return handle_exception(e, "handle_generate_note")
+#     except (LLMCircuitBreakerOpenError, AIServiceException) as e:
+#         logger.error(f"AI service error in handle_generate_note: {e}", exc_info=True)
+#         return handle_exception(e, "handle_generate_note")
+#     except (ValidationException, InvalidInputError) as e:
+#         logger.warning(f"Validation error in handle_generate_note: {e}")
+#         return handle_exception(e, "handle_generate_note")
+#     except Exception as e:
+#         logger.error(f"Unexpected error in handle_generate_note: {type(e).__name__}: {e}", exc_info=True)
+#         return handle_exception(e, "handle_generate_note")
 
-@app.route('/api/v1/chat', methods=['POST'])
-@rate_limit('chat')
-def handle_chat():
-    """Handle chat messages and generate bookseller responses."""
-    from core.exceptions.exceptions import (
-        LLMCircuitBreakerOpenError, AIServiceException,
-        ValidationException, InvalidInputError
-    )
-    from core.responses.error_responses import handle_exception
+# @app.route('/api/v1/chat', methods=['POST'])
+# @rate_limit('chat')
+# def handle_chat():
+#     """Handle chat messages and generate bookseller responses."""
+#     from core.exceptions.exceptions import (
+#         LLMCircuitBreakerOpenError, AIServiceException,
+#         ValidationException, InvalidInputError
+#     )
+#     from core.responses.error_responses import handle_exception
     
-    try:
-        data = request.get_json()
+#     try:
+#         data = request.get_json()
         
-        is_valid, validated_data = validate_request(ChatRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
+#         is_valid, validated_data = validate_request(ChatRequest, data)
+#         if not is_valid:
+#             return jsonify(validated_data), 400
         
-        user_message = validated_data.message
-        conversation_history = validated_data.history or []
+#         user_message = validated_data.message
+#         conversation_history = validated_data.history or []
         
-        validated_history = []
-        for msg in conversation_history:
-            if hasattr(msg, 'dict'):
-                validated_history.append(msg.dict())
-            else:
-                validated_history.append(msg)
+#         validated_history = []
+#         for msg in conversation_history:
+#             if hasattr(msg, 'dict'):
+#                 validated_history.append(msg.dict())
+#             else:
+#                 validated_history.append(msg)
         
-        # Generate contextual response based on conversation history
-        response = generate_chat_response(user_message, validated_history)
+#         # Generate contextual response based on conversation history
+#         response = generate_chat_response(user_message, validated_history)
         
-        # Try to get book recommendations based on the message
-        recommendations = get_ai_recommendations(user_message)
+#         # Try to get book recommendations based on the message
+#         recommendations = get_ai_recommendations(user_message)
         
-        # =========================================================================
-        # TIMESTAMP STANDARDIZATION
-        # =========================================================================
-        # Ensure that the timestamp returned to the client is explicitly set to
-        # UTC using timezone-aware objects. This prevents subtle bugs where server 
-        # locale or deployment environments might skew the time by relying on 
-        # naive datetime.now() calls. This is a critical fix for ensuring
-        # consistent client-side formatting regardless of geographical region.
-        # =========================================================================
+#         # =========================================================================
+#         # TIMESTAMP STANDARDIZATION
+#         # =========================================================================
+#         # Ensure that the timestamp returned to the client is explicitly set to
+#         # UTC using timezone-aware objects. This prevents subtle bugs where server 
+#         # locale or deployment environments might skew the time by relying on 
+#         # naive datetime.now() calls. This is a critical fix for ensuring
+#         # consistent client-side formatting regardless of geographical region.
+#         # =========================================================================
         
-        return success_response(
-            data={
-                "response": response,
-                "recommendations": recommendations,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            }
-        )
+#         return success_response(
+#             data={
+#                 "response": response,
+#                 "recommendations": recommendations,
+#                 "timestamp": datetime.now(timezone.utc).isoformat()
+#             }
+#         )
         
-    except (LLMCircuitBreakerOpenError, AIServiceException) as e:
-        logger.error(f"AI service error in handle_chat: {e}", exc_info=True)
-        return handle_exception(e, "handle_chat")
-    except (ValidationException, InvalidInputError) as e:
-        logger.warning(f"Validation error in handle_chat: {e}")
-        return handle_exception(e, "handle_chat")
-    except Exception as e:
-        logger.error(f"Unexpected error in handle_chat: {type(e).__name__}: {e}", exc_info=True)
-        return handle_exception(e, "handle_chat")
+#     except (LLMCircuitBreakerOpenError, AIServiceException) as e:
+#         logger.error(f"AI service error in handle_chat: {e}", exc_info=True)
+#         return handle_exception(e, "handle_chat")
+#     except (ValidationException, InvalidInputError) as e:
+#         logger.warning(f"Validation error in handle_chat: {e}")
+#         return handle_exception(e, "handle_chat")
+#     except Exception as e:
+#         logger.error(f"Unexpected error in handle_chat: {type(e).__name__}: {e}", exc_info=True)
+#         return handle_exception(e, "handle_chat")
 
 @app.route('/api/v1/health', methods=['GET'])
 def health_check():
@@ -1137,169 +1137,169 @@ def sync_library():
         db.session.rollback()
         return internal_error(str(e))
 
-# =========================================================================
-# ENDPOINT: User Registration
-# Core signup flow. Validates credentials, creates a User entity, and
-# immediately responds with an active session ready to go.
-# =========================================================================
-@app.route('/api/v1/register', methods=['POST'])
-@limiter.limit("5 per minute")
-def register():
-    """Register a new user and return JWT token."""
-    try:
-        data = request.get_json()
+# # =========================================================================
+# # ENDPOINT: User Registration
+# # Core signup flow. Validates credentials, creates a User entity, and
+# # immediately responds with an active session ready to go.
+# # =========================================================================
+# @app.route('/api/v1/register', methods=['POST'])
+# @limiter.limit("5 per minute")
+# def register():
+#     """Register a new user and return JWT token."""
+#     try:
+#         data = request.get_json()
         
-        # =========================================================================
-        # SECURITY AUDIT: REGISTRATION ATTEMPT
-        # =========================================================================
-        # All registration attempts are logged for security auditing purposes.
-        # CSRF protection is enforced automatically by Flask-WTF for this 
-        # POST request, ensuring the signup originates from our own UI.
-        # =========================================================================
-        logger.info(f"Registration attempt for user: {data.get('username')} from IP: {request.remote_addr}")
+#         # =========================================================================
+#         # SECURITY AUDIT: REGISTRATION ATTEMPT
+#         # =========================================================================
+#         # All registration attempts are logged for security auditing purposes.
+#         # CSRF protection is enforced automatically by Flask-WTF for this 
+#         # POST request, ensuring the signup originates from our own UI.
+#         # =========================================================================
+#         logger.info(f"Registration attempt for user: {data.get('username')} from IP: {request.remote_addr}")
         
-        is_valid, validated_data = validate_request(RegisterRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
+#         is_valid, validated_data = validate_request(RegisterRequest, data)
+#         if not is_valid:
+#             return jsonify(validated_data), 400
         
-        username = validated_data.username
-        email = validated_data.email
-        password = validated_data.password
+#         username = validated_data.username
+#         email = validated_data.email
+#         password = validated_data.password
 
-        if User.query.filter((User.username==username) | (User.email==email)).first():
-            return resource_exists_error("User")
+#         if User.query.filter((User.username==username) | (User.email==email)).first():
+#             return resource_exists_error("User")
 
-        try:
-            user = register_user(username, email, password)
-            if not user:
-                return internal_error("Failed to create user record after registration.")
+#         try:
+#             user = register_user(username, email, password)
+#             if not user:
+#                 return internal_error("Failed to create user record after registration.")
             
-            access_token = create_access_token(identity=str(user.id))
+#             access_token = create_access_token(identity=str(user.id))
             
-            resp, status = success_response(
-                data={
-                    "message": "User registered successfully",
-                    "user": {"id": user.id, "username": user.username, "email": user.email}
-                },
-                status_code=201
-            )
-            set_access_cookies(resp, access_token)
-            return resp, status
-        except SQLAlchemyError as e:
-            logger.error(f"Database error during registration: {e}")
-            return internal_error("A database error occurred during registration.")
-    except Exception as e:
-        logger.error(f"Unexpected error in register endpoint: {e}")
-        return internal_error(str(e))
+#             resp, status = success_response(
+#                 data={
+#                     "message": "User registered successfully",
+#                     "user": {"id": user.id, "username": user.username, "email": user.email}
+#                 },
+#                 status_code=201
+#             )
+#             set_access_cookies(resp, access_token)
+#             return resp, status
+#         except SQLAlchemyError as e:
+#             logger.error(f"Database error during registration: {e}")
+#             return internal_error("A database error occurred during registration.")
+#     except Exception as e:
+#         logger.error(f"Unexpected error in register endpoint: {e}")
+#         return internal_error(str(e))
 
-@app.route('/api/v1/login', methods=['POST'])
-@limiter.limit("5 per minute")
-def login():
-    """Authenticate user and return JWT token."""
-    from core.exceptions.exceptions import DatabaseQueryError, ValidationException
-    from core.responses.error_responses import handle_exception
+# @app.route('/api/v1/login', methods=['POST'])
+# @limiter.limit("5 per minute")
+# def login():
+#     """Authenticate user and return JWT token."""
+#     from core.exceptions.exceptions import DatabaseQueryError, ValidationException
+#     from core.responses.error_responses import handle_exception
     
-    try:
-        data = request.get_json()
+#     try:
+#         data = request.get_json()
         
-        # =========================================================================
-        # SECURITY AUDIT: LOGIN ATTEMPT
-        # =========================================================================
-        # All login attempts are strictly validated against CSRF tokens.
-        # This prevents an attacker from creating a malicious site that 
-        # automatically logs a user into an account they control.
-        # =========================================================================
-        logger.info(f"Login attempt for identifier: {data.get('username')} from IP: {request.remote_addr}")
+#         # =========================================================================
+#         # SECURITY AUDIT: LOGIN ATTEMPT
+#         # =========================================================================
+#         # All login attempts are strictly validated against CSRF tokens.
+#         # This prevents an attacker from creating a malicious site that 
+#         # automatically logs a user into an account they control.
+#         # =========================================================================
+#         logger.info(f"Login attempt for identifier: {data.get('username')} from IP: {request.remote_addr}")
         
-        is_valid, validated_data = validate_request(LoginRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
+#         is_valid, validated_data = validate_request(LoginRequest, data)
+#         if not is_valid:
+#             return jsonify(validated_data), 400
         
-        username_or_email = validated_data.username
-        password = validated_data.password
+#         username_or_email = validated_data.username
+#         password = validated_data.password
 
-        user = User.query.filter((User.username==username_or_email) | (User.email==username_or_email)).first()
+#         user = User.query.filter((User.username==username_or_email) | (User.email==username_or_email)).first()
         
-        if user and user.check_password(password):
-            access_token = create_access_token(identity=str(user.id))
+#         if user and user.check_password(password):
+#             access_token = create_access_token(identity=str(user.id))
             
-            resp, status = success_response(
-                data={
-                    "message": "Login successful",
-                    "user": {"id": user.id, "username": user.username, "email": user.email}
-                }
-            )
-            set_access_cookies(resp, access_token)
-            return resp, status
+#             resp, status = success_response(
+#                 data={
+#                     "message": "Login successful",
+#                     "user": {"id": user.id, "username": user.username, "email": user.email}
+#                 }
+#             )
+#             set_access_cookies(resp, access_token)
+#             return resp, status
             
-        return auth_error("Invalid username or password")
-    except Exception as e:
-        logger.error(f"Unexpected error in login: {type(e).__name__}: {e}", exc_info=True)
-        return handle_exception(e, "login")
+#         return auth_error("Invalid username or password")
+#     except Exception as e:
+#         logger.error(f"Unexpected error in login: {type(e).__name__}: {e}", exc_info=True)
+#         return handle_exception(e, "login")
 
 
-@app.route('/api/v1/logout', methods=['POST'])
-def logout():
-    """Clear JWT cookies for logout."""
-    resp, status = success_response(message="Logout successful")
-    unset_jwt_cookies(resp)
-    return resp, status
+# @app.route('/api/v1/logout', methods=['POST'])
+# def logout():
+#     """Clear JWT cookies for logout."""
+#     resp, status = success_response(message="Logout successful")
+#     unset_jwt_cookies(resp)
+#     return resp, status
 
 
-@app.route('/api/v1/auth/verify', methods=['GET'])
-@jwt_required()
-def verify_auth_session():
-    """Validate JWT from access cookie and return the current user (session restore)."""
-    try:
-        uid = get_jwt_identity()
-        user = User.query.get(int(uid))
-        if not user:
-            return jsonify({"error": "User not found"}), 404
-        return jsonify({
-            "user": {"id": user.id, "username": user.username, "email": user.email}
-        }), 200
-    except (TypeError, ValueError):
-        return jsonify({"error": "Invalid session"}), 401
+# @app.route('/api/v1/auth/verify', methods=['GET'])
+# @jwt_required()
+# def verify_auth_session():
+#     """Validate JWT from access cookie and return the current user (session restore)."""
+#     try:
+#         uid = get_jwt_identity()
+#         user = User.query.get(int(uid))
+#         if not user:
+#             return jsonify({"error": "User not found"}), 404
+#         return jsonify({
+#             "user": {"id": user.id, "username": user.username, "email": user.email}
+#         }), 200
+#     except (TypeError, ValueError):
+#         return jsonify({"error": "Invalid session"}), 401
 
 
-# ==================== READING STATS ENDPOINTS ====================
-@app.route('/api/v1/stats/goal', methods=['POST'])
-@jwt_required()
-def set_reading_goal():
-    """Set or update annual reading goal."""
-    data = request.get_json(silent=True)
-    if data is None:
-        return jsonify({"error": "Invalid or missing JSON body"}), 400
-    current_user_id = get_jwt_identity()
+# # ==================== READING STATS ENDPOINTS ====================
+# @app.route('/api/v1/stats/goal', methods=['POST'])
+# @jwt_required()
+# def set_reading_goal():
+#     """Set or update annual reading goal."""
+#     data = request.get_json(silent=True)
+#     if data is None:
+#         return jsonify({"error": "Invalid or missing JSON body"}), 400
+#     current_user_id = get_jwt_identity()
     
-    is_valid, validated_data = validate_request(SetGoalRequest, data)
-    if not is_valid:
-        return jsonify(validated_data), 400
+#     is_valid, validated_data = validate_request(SetGoalRequest, data)
+#     if not is_valid:
+#         return jsonify(validated_data), 400
     
-    if str(validated_data.user_id) != str(current_user_id):
-        return forbidden_error("Unauthorized")
+#     if str(validated_data.user_id) != str(current_user_id):
+#         return forbidden_error("Unauthorized")
     
-    try:
-        existing_goal = ReadingGoal.query.filter_by(
-            user_id=validated_data.user_id, year=validated_data.year
-        ).first()
+#     try:
+#         existing_goal = ReadingGoal.query.filter_by(
+#             user_id=validated_data.user_id, year=validated_data.year
+#         ).first()
         
-        if existing_goal:
-            existing_goal.target_books = validated_data.target_books
-            goal = existing_goal
-        else:
-            goal = ReadingGoal(
-                user_id=validated_data.user_id,
-                year=validated_data.year,
-                target_books=validated_data.target_books
-            )
-            db.session.add(goal)
+#         if existing_goal:
+#             existing_goal.target_books = validated_data.target_books
+#             goal = existing_goal
+#         else:
+#             goal = ReadingGoal(
+#                 user_id=validated_data.user_id,
+#                 year=validated_data.year,
+#                 target_books=validated_data.target_books
+#             )
+#             db.session.add(goal)
         
-        db.session.commit()
-        return jsonify({"message": "Reading goal set successfully", "goal": goal.to_dict()}), 200
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({"error": str(e)}), 500
+#         db.session.commit()
+#         return jsonify({"message": "Reading goal set successfully", "goal": goal.to_dict()}), 200
+#     except Exception as e:
+#         db.session.rollback()
+#         return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/v1/stats', methods=['GET'])
@@ -1906,20 +1906,20 @@ def delete_price_alert(alert_id):
 with app.app_context():
     db.create_all()
 
-@app.route('/api/books', methods=['GET'])
-def get_books():
-    query = request.args.get('q')
-    max_results = request.args.get('maxResults', 10)
+# @app.route('/api/books', methods=['GET'])
+# def get_books():
+#     query = request.args.get('q')
+#     max_results = request.args.get('maxResults', 10)
 
-    API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY")
-    url = f"https://www.googleapis.com/books/v1/volumes?q={query}&maxResults={max_results}&key={API_KEY}"
+#     API_KEY = os.getenv("GOOGLE_BOOKS_API_KEY")
+#     url = f"https://www.googleapis.com/books/v1/volumes?q={query}&maxResults={max_results}&key={API_KEY}"
 
-    try:
-        response = requests.get(url)
-        data = response.json()
-        return jsonify(data)
-    except Exception as e:
-        return jsonify({"error": "Failed to fetch books"}), 500
+#     try:
+#         response = requests.get(url)
+#         data = response.json()
+#         return jsonify(data)
+#     except Exception as e:
+#         return jsonify({"error": "Failed to fetch books"}), 500
 
 if __name__ == '__main__':
     server_config = app_config.server

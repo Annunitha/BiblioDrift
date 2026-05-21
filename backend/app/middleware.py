@@ -6,12 +6,9 @@ import logging
 from functools import wraps
 from flask import request, jsonify
 
-try:
-    from .error_responses import invalid_json_error
-    from .security_parsers import validate_content_type as _validate_content_type_header
-except ImportError:
-    from core.responses.error_responses import invalid_json_error
-    from core.security.security_parsers import validate_content_type as _validate_content_type_header
+
+from core.responses.error_responses import invalid_json_error
+from core.security.security_parsers import validate_content_type as _validate_content_type_header
 
 logger = logging.getLogger(__name__)
 
@@ -221,3 +218,11 @@ def csrf_token_required(f):
             }), 500
             
     return decorated_function
+
+# add to the bottom of app/middleware.py
+
+def register_middleware(app):
+    """No global middleware to register — all middleware in this module
+    are per-route decorators (validate_content_type_middleware, etc.)
+    applied directly on route functions in app.py."""
+    pass
