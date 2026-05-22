@@ -10,6 +10,36 @@
                 document.documentElement.setAttribute('data-theme', 'night');
             }
         })();
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const btn = document.getElementById('themeToggle');
+            if (!btn) return;
+
+            const icon = btn.querySelector('i');
+            const STORAGE_KEY = 'bibliodrift_theme';
+
+            function applyTheme(theme) {
+                if (theme === 'night') {
+                    document.documentElement.setAttribute('data-theme', 'night');
+                    if (icon) icon.className = 'fa-solid fa-sun';
+                } else {
+                    document.documentElement.removeAttribute('data-theme');
+                    if (icon) icon.className = 'fa-solid fa-moon';
+                }
+
+                localStorage.setItem(STORAGE_KEY, theme);
+                if (typeof restoreTheme === 'function') restoreTheme();
+            }
+
+            const savedTheme = localStorage.getItem(STORAGE_KEY) || 'light';
+            applyTheme(savedTheme);
+
+            btn.addEventListener('click', function () {
+                const current = document.documentElement.getAttribute('data-theme') === 'night' ? 'night' : 'light';
+                const next = current === 'night' ? 'light' : 'night';
+                applyTheme(next);
+            });
+        });
     </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat with Elara | BiblioDrift</title>

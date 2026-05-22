@@ -18,8 +18,10 @@
 
   <script>
     (function () {
-      const theme = localStorage.getItem('bibliodrift_theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', theme);
+      const theme = localStorage.getItem('bibliodrift_theme');
+      if (theme === 'night') {
+        document.documentElement.setAttribute('data-theme', 'night');
+      }
     })();
   </script>
 
@@ -699,7 +701,7 @@
       
       function updateThemeToggleButton(currentTheme) {
         const icon = themeToggle.querySelector("i");
-        if (currentTheme === "night" || currentTheme === "dark") {
+        if (currentTheme === "night") {
           icon.className = "fa-solid fa-sun";
           themeToggle.setAttribute("title", "Switch to Light Mode");
         } else {
@@ -712,9 +714,13 @@
 
       themeToggle.addEventListener("click", () => {
         const activeTheme = document.documentElement.getAttribute('data-theme');
-        const nextTheme = (activeTheme === "dark" || activeTheme === "night") ? "light" : "dark";
+        const nextTheme = (activeTheme === "night") ? "light" : "night";
         
-        document.documentElement.setAttribute('data-theme', nextTheme);
+        if (nextTheme === "night") {
+          document.documentElement.setAttribute('data-theme', 'night');
+        } else {
+          document.documentElement.removeAttribute('data-theme');
+        }
         localStorage.setItem('bibliodrift_theme', nextTheme);
         if (typeof restoreTheme === 'function') restoreTheme();
         updateThemeToggleButton(nextTheme);
