@@ -106,6 +106,44 @@ window.renderHeatmap = function () {
     grid.setAttribute('role', 'grid');
     grid.setAttribute('aria-label', 'Reading activity contribution graph');
 
+    const board = document.createElement('div');
+    board.className = 'heatmap-board';
+
+    const monthLabels = document.createElement('div');
+    monthLabels.className = 'heatmap-months';
+
+    const weekdayLabels = document.createElement('div');
+    weekdayLabels.className = 'heatmap-weekdays';
+
+    ['', 'Mon', '', 'Wed', '', 'Fri', ''].forEach((label) => {
+        const weekday = document.createElement('div');
+        weekday.className = 'heatmap-weekday';
+        weekday.textContent = label;
+        weekdayLabels.appendChild(weekday);
+    });
+
+    const monthMarkers = [];
+    let lastMonth = null;
+    for (let w = 0; w < HeatmapConfig.weeksToShow; w++) {
+        const weekDate = new Date(startDate);
+        weekDate.setDate(startDate.getDate() + (w * 7));
+        const month = weekDate.toLocaleDateString('en-US', { month: 'short' });
+        if (lastMonth !== month) {
+            monthMarkers.push({ month, weekIndex: w });
+            lastMonth = month;
+        }
+    }
+
+    monthMarkers.forEach((marker, index) => {
+        const nextWeekIndex = monthMarkers[index + 1]?.weekIndex ?? HeatmapConfig.weeksToShow;
+        const spanWeeks = Math.max(1, nextWeekIndex - marker.weekIndex);
+        const monthLabel = document.createElement('span');
+        monthLabel.className = 'heatmap-month';
+        monthLabel.textContent = marker.month;
+        monthLabel.style.width = `calc(${spanWeeks} * (var(--heatmap-cell-size) + var(--heatmap-cell-gap)))`;
+        monthLabels.appendChild(monthLabel);
+    });
+
     for (let w = 0; w < HeatmapConfig.weeksToShow; w++) {
         for (let d = 0; d < 7; d++) {
             const cellDate = new Date(startDate);
@@ -153,7 +191,11 @@ window.renderHeatmap = function () {
         }
     }
 
-    container.appendChild(grid);
+    board.appendChild(monthLabels);
+    board.appendChild(weekdayLabels);
+    board.appendChild(grid);
+
+    container.appendChild(board);
     
     // Scroll heatmap to the right (latest activity)
     const scrollContainer = document.querySelector('.heatmap-scroll-container');
