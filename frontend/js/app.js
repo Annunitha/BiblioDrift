@@ -4145,7 +4145,6 @@ window.addEventListener('offline', handleConnectivityChange);
 // Run a status check right away on startup in case the user loads the app while already disconnected
 document.addEventListener('DOMContentLoaded', handleConnectivityChange);
 
-<<<<<<< HEAD
 // Reading Mood Quiz - manager-based implementation
 class ReadingMoodQuizManager {
         constructor(libraryManager, renderer) {
@@ -4276,7 +4275,6 @@ function _startReadingMoodQuiz() {
 
 _startReadingMoodQuiz();
 
-=======
 function showForgotResetLink(resetUrl) {
     const box = document.getElementById('forgotResetLinkBox');
     if (!box || !resetUrl) return;
@@ -4359,63 +4357,63 @@ window.handleForgotPassword = handleForgotPassword;
 
 async function handleResetPassword(event) {
     if (event) event.preventDefault();
+
     const btn = document.getElementById('resetSubmitBtn');
-    const newPassword = document.getElementById('newPassword')?.value || '';
-    const confirmPassword = document.getElementById('confirmPassword')?.value || '';
-    const token = new URLSearchParams(window.location.search).get('token') || '';
+    const pwdInput = document.getElementById('resetNewPassword');
     const originalText = btn ? btn.textContent : 'Reset password';
+    const newPassword = pwdInput?.value || '';
 
-    if (newPassword.length < 8) {
-        if (typeof showToast === 'function') showToast('Password must be at least 8 characters.', 'error');
-        else alert('Password must be at least 8 characters.');
-        return;
-    }
-
-    if (newPassword !== confirmPassword) {
-        if (typeof showToast === 'function') showToast('Passwords do not match.', 'error');
-        else alert('Passwords do not match.');
-        return;
-    }
+    // Get the token from the URL e.g. auth.html?mode=reset&token=xxx
+    const urlParams = new URLSearchParams(window.location.search);
+    const token = urlParams.get('token');
 
     if (!token) {
-        if (typeof showToast === 'function') showToast('Invalid or missing reset link.', 'error');
-        else alert('Invalid or missing reset link.');
+        const err = 'Reset token is missing from the URL.';
+        if (typeof showToast === 'function') showToast(err, 'error');
+        else alert(err);
+        return;
+    }
+
+    if (newPassword.length < 6) {
+        const err = 'Password must be at least 6 characters long.';
+        if (typeof showToast === 'function') showToast(err, 'error');
+        else alert(err);
         return;
     }
 
     if (btn) {
         btn.disabled = true;
-        btn.textContent = 'Updating...';
+        btn.textContent = 'Resetting...';
     }
 
     try {
-        const res = await fetch(`${MOOD_API_BASE}/auth/reset-password`, {
+        const res = await fetch(`${MOOD_API_BASE}/auth/reset-password/${encodeURIComponent(token)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ token, password: newPassword }),
+            body: JSON.stringify({ new_password: newPassword }),
         });
         const data = await res.json();
-        const message = data.message;
 
         if (res.ok) {
-            if (typeof showToast === 'function') showToast(message || 'Password updated.', 'success');
-            else alert(message || 'Password updated.');
+            if (typeof showToast === 'function') showToast('Password reset successfully! You can now log in.', 'success');
+            else alert('Password reset successfully! You can now log in.');
 
-            const url = new URL(window.location.href);
-            url.searchParams.delete('token');
             setTimeout(() => {
-                window.location.href = url.pathname;
-            }, 1200);
+                window.location.href = 'auth.html?mode=login';
+            }, 2000);
         } else {
-            const err = data.error || data.message || 'Unable to reset password.';
+            const err = data.error || data.message || 'Failed to reset password.';
             if (typeof showToast === 'function') showToast(err, 'error');
             else alert(err);
         }
     } catch (error) {
         console.error('Reset password failed:', error);
-        if (typeof showToast === 'function') showToast('Network error. Please try again.', 'error');
-        else alert('Network error. Please try again.');
+        if (typeof showToast === 'function') {
+            showToast('Could not reach the server. Ensure backend is running.', 'error');
+        } else {
+            alert('Network error. Ensure the backend is running on port 5000.');
+        }
     } finally {
         if (btn) {
             btn.disabled = false;
@@ -4425,4 +4423,3 @@ async function handleResetPassword(event) {
 }
 
 window.handleResetPassword = handleResetPassword;
->>>>>>> pr-761
