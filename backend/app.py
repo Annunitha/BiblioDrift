@@ -48,10 +48,12 @@ from price_tracker import get_price_tracker
 from cache_service import cache_service
 from validators import (
     validate_request,
+    validate_schema,
     validate_google_books_id,
     AnalyzeMoodRequest,
     MoodTagsRequest,
     MoodSearchRequest,
+    VibeCheckRequest,
     GenerateNoteRequest,
     ChatRequest,
     CategoryBooksRequest,
@@ -841,17 +843,13 @@ def index():
 
 @app.route('/api/v1/analyze-mood', methods=['POST'])
 @limiter.limit("10 per minute")
-def handle_analyze_mood():
+@validate_schema(AnalyzeMoodRequest)
+def handle_analyze_mood(validated_data):
     """Analyze book mood using GoodReads reviews."""
     if not MOOD_ANALYSIS_AVAILABLE:
         return service_unavailable_error("Mood analysis not available - missing dependencies")
     
     try:
-        data = request.get_json()
-        
-        is_valid, validated_data = validate_request(AnalyzeMoodRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
         
         title = validated_data.title
         author = validated_data.author
@@ -869,7 +867,8 @@ def handle_analyze_mood():
 
 @app.route('/api/v1/mood-tags', methods=['POST'])
 @limiter.limit("10 per minute")
-def handle_mood_tags():
+@validate_schema(MoodTagsRequest)
+def handle_mood_tags(validated_data):
     """Get mood tags for a book."""
     from exceptions import (
         LLMCircuitBreakerOpenError, AIServiceException, 
@@ -878,11 +877,6 @@ def handle_mood_tags():
     from error_responses import handle_exception
     
     try:
-        data = request.get_json()
-        
-        is_valid, validated_data = validate_request(MoodTagsRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
         
         title = validated_data.title
         author = validated_data.author
@@ -904,7 +898,8 @@ def handle_mood_tags():
 
 @app.route('/api/v1/mood-search', methods=['POST'])
 @limiter.limit("10 per minute")
-def handle_mood_search():
+@validate_schema(MoodSearchRequest)
+def handle_mood_search(validated_data):
     """Search for books based on mood/vibe with improved query parsing."""
     from exceptions import (
         LLMCircuitBreakerOpenError, AIServiceException,
@@ -913,11 +908,6 @@ def handle_mood_search():
     from error_responses import handle_exception
     
     try:
-        data = request.get_json()
-        
-        is_valid, validated_data = validate_request(MoodSearchRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
         
         mood_query = validated_data.query
         
@@ -960,85 +950,12 @@ def handle_mood_search():
 
 @app.route('/api/v1/vibe-check', methods=['POST'])
 @rate_limit('vibe_check')
-def handle_vibe_check():
+@validate_schema(VibeCheckRequest)
+def handle_vibe_check(validated_data):
     """
     Generate hyper-personalized book recommendations based on a specific vibe.
     """
     try:
-        data = request.get_json()
-
-        # Safely validate input
-        if not data or 'vibe_prompt' not in data:
-            return missing_fields_error(["vibe_prompt"])
-
-        vibe_prompt = data['vibe_prompt']
-        count = data.get('count', 3)
-
-        # Call the Gemini pipeline
-        books = get_vibe_recommendations(
-            vibe_prompt=vibe_prompt,
-            count=count
-        )
-
-        if not books:
-            return service_unavailable_error(
-                "Could not generate vibe recommendations right now. Please try again shortly."
-            )
-
-        return success_response(
-            data={
-                "vibe_prompt": vibe_prompt,
-                "books": books,
-            }
-        )
-
-    except Exception as e:
-        logger.error(f"Error in handle_vibe_check: {str(e)}", exc_info=True)
-        return internal_error(str(e))
-
-
-@app.route('/api/v1/category-books', methods=['POST'])
-@limiter.limit("10 per minute")
-def handle_category_books():
-    """
-    Return AI-generated, category-specific book recommendations.
-
-    Fix for: all shelf categories displaying the same default books.
-
-    Each category sends its name + vibe description. The LLM returns a list
-    of real book titles and authors specific to that vibe. The frontend uses
-    these titles to query the Google Books API for actual cover images and
-    metadata — ensuring each shelf displays genuinely different, relevant books.
-
-    Request body:
-        {
-            "category": "Rainy Evening Reads",
-            "vibe_description": "quiet and melancholy, best read on grey afternoons",
-            "count": 5
-        }
-
-    Response:
-        {
-            "success": true,
-            "data": {
-                "category": "Rainy Evening Reads",
-                "books": [
-                    {
-                        "title": "The Remains of the Day",
-                        "author": "Kazuo Ishiguro",
-                        "reason": "A quiet, melancholy novel about regret — perfect for a rainy afternoon."
-                    },
-                    ...
-                ]
-            }
-        }
-    """
-    try:
-        data = request.get_json()
-
-        is_valid, validated_data = validate_request(CategoryBooksRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
 
         books = get_category_books(
             category=validated_data.category,
@@ -1088,7 +1005,8 @@ def handle_purchase_links():
 
 @app.route('/api/v1/generate-note', methods=['POST'])
 @limiter.limit("10 per minute")
-def handle_generate_note():
+@validate_schema(GenerateNoteRequest)
+def handle_generate_note(validated_data):
     """Generate AI-powered book recommendation with vibe support."""
     from exceptions import (
         LLMCircuitBreakerOpenError, AIServiceException,
@@ -1098,11 +1016,6 @@ def handle_generate_note():
     from error_responses import handle_exception
     
     try:
-        data = request.get_json()
-        
-        is_valid, validated_data = validate_request(GenerateNoteRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
         
         description = validated_data.description
         title = validated_data.title
@@ -1145,7 +1058,8 @@ def handle_generate_note():
 
 @app.route('/api/v1/chat', methods=['POST'])
 @limiter.limit("10 per minute")
-def handle_chat():
+@validate_schema(ChatRequest)
+def handle_chat(validated_data):
     """Handle chat messages and generate bookseller responses."""
     from exceptions import (
         LLMCircuitBreakerOpenError, AIServiceException,
@@ -1154,11 +1068,6 @@ def handle_chat():
     from error_responses import handle_exception
     
     try:
-        data = request.get_json()
-        
-        is_valid, validated_data = validate_request(ChatRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
         
         user_message = validated_data.message
         conversation_history = validated_data.history or []
@@ -1240,19 +1149,14 @@ def health_check():
 @app.route('/api/v1/library', methods=['POST'])
 @limiter.limit("20 per minute")
 @jwt_required()
-def add_to_library():
+@validate_schema(AddToLibraryRequest)
+def add_to_library(validated_data):
     """Add a book to the user's shelf."""
     from sqlalchemy.exc import IntegrityError
     from exceptions import DatabaseQueryError, DatabaseIntegrityError, ValidationException
     from error_responses import handle_exception
     
     try:
-        data = request.get_json()
-        current_user_id = get_jwt_identity()
-        
-        is_valid, validated_data = validate_request(AddToLibraryRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
         
         if str(validated_data.user_id) != str(current_user_id):
             return unauthorized_access_error("Cannot access another user's library")
@@ -1422,15 +1326,10 @@ def _get_yearly_stats(user_id, year):
 # ==================== LIBRARY ENDPOINTS ====================
 @app.route('/api/v1/library/<int:item_id>', methods=['PUT'])
 @jwt_required()
-def update_library_item(item_id):
+@validate_schema(UpdateLibraryItemRequest)
+def update_library_item(item_id, validated_data):
     """Update a library item (e.g. move to different shelf)."""
     try:
-        data = request.get_json()
-        current_user_id = get_jwt_identity()
-        
-        is_valid, validated_data = validate_request(UpdateLibraryItemRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
         
         item = ShelfItem.query.with_for_update().get(item_id)
         if not item:
@@ -1516,15 +1415,11 @@ price_tracker = get_price_tracker(db)
 @app.route('/api/v1/library/sync', methods=['POST'])
 @limiter.limit("20 per minute")
 @jwt_required()
-def sync_library():
+@validate_schema(SyncLibraryRequest)
+def sync_library(validated_data):
     """Sync a list of books from local storage to the user's account."""
     try:
         current_user_id = get_jwt_identity()
-        data = request.get_json()
-        
-        is_valid, validated_data = validate_request(SyncLibraryRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
         
         user_id = validated_data.user_id
         raw_items = validated_data.items
@@ -1646,23 +1541,10 @@ def sync_library():
 # =========================================================================
 @app.route('/api/v1/register', methods=['POST'])
 @limiter.limit("5 per 10 seconds")
-def register():
+@validate_schema(RegisterRequest)
+def register(validated_data):
     """Register a new user and return JWT token."""
     try:
-        data = request.get_json()
-        
-        # =========================================================================
-        # SECURITY AUDIT: REGISTRATION ATTEMPT
-        # =========================================================================
-        # All registration attempts are logged for security auditing purposes.
-        # CSRF protection is enforced automatically by Flask-WTF for this 
-        # POST request, ensuring the signup originates from our own UI.
-        # =========================================================================
-        logger.info(f"Registration attempt for user: {data.get('username')} from IP: {request.remote_addr}")
-        
-        is_valid, validated_data = validate_request(RegisterRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
         
         username = validated_data.username
         email = validated_data.email
@@ -1697,26 +1579,13 @@ def register():
 
 @app.route('/api/v1/login', methods=['POST'])
 @limiter.limit("5 per 10 seconds")
-def login():
+@validate_schema(LoginRequest)
+def login(validated_data):
     """Authenticate user and return JWT token."""
     from exceptions import DatabaseQueryError, ValidationException
     from error_responses import handle_exception
     
     try:
-        data = request.get_json()
-        
-        # =========================================================================
-        # SECURITY AUDIT: LOGIN ATTEMPT
-        # =========================================================================
-        # All login attempts are strictly validated against CSRF tokens.
-        # This prevents an attacker from creating a malicious site that 
-        # automatically logs a user into an account they control.
-        # =========================================================================
-        logger.info(f"Login attempt for identifier: {data.get('username')} from IP: {request.remote_addr}")
-        
-        is_valid, validated_data = validate_request(LoginRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
         
         username_or_email = validated_data.username
         password = validated_data.password
@@ -1902,16 +1771,10 @@ def logout():
 @app.route('/api/v1/auth/forgot-password', methods=['POST'])
 @csrf.exempt
 @limiter.limit("5 per minute")
-def forgot_password():
+@validate_schema(ForgotPasswordRequest)
+def forgot_password(validated_data):
     """Request a password reset link (always returns a generic success message)."""
     try:
-        data = request.get_json(silent=True)
-        if data is None:
-            return invalid_json_error()
-
-        is_valid, validated_data = validate_request(ForgotPasswordRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
 
         plain_token = None
         try:
@@ -1944,16 +1807,10 @@ def forgot_password():
 @app.route('/api/v1/auth/reset-password', methods=['POST'])
 @csrf.exempt
 @limiter.limit("5 per minute")
-def reset_password():
+@validate_schema(ResetPasswordRequest)
+def reset_password(validated_data):
     """Set a new password using a valid reset token."""
     try:
-        data = request.get_json(silent=True)
-        if data is None:
-            return invalid_json_error()
-
-        is_valid, validated_data = validate_request(ResetPasswordRequest, data)
-        if not is_valid:
-            return jsonify(validated_data), 400
 
         ok, message = reset_password_with_token(
             validated_data.token,
@@ -1987,16 +1844,9 @@ def verify_auth_session():
 # ==================== READING STATS ENDPOINTS ====================
 @app.route('/api/v1/stats/goal', methods=['POST'])
 @jwt_required()
-def set_reading_goal():
+@validate_schema(SetGoalRequest)
+def set_reading_goal(validated_data):
     """Set or update annual reading goal."""
-    data = request.get_json(silent=True)
-    if data is None:
-        return jsonify({"error": "Invalid or missing JSON body"}), 400
-    current_user_id = get_jwt_identity()
-    
-    is_valid, validated_data = validate_request(SetGoalRequest, data)
-    if not is_valid:
-        return jsonify(validated_data), 400
     
     if str(validated_data.user_id) != str(current_user_id):
         return forbidden_error("Unauthorized")
@@ -2112,16 +1962,9 @@ def get_leaderboard():
 # ==================== COLLECTIONS ENDPOINTS ====================
 @app.route('/api/v1/collections', methods=['POST'])
 @jwt_required()
-def create_collection():
+@validate_schema(CollectionRequest)
+def create_collection(validated_data):
     """Create a new collection."""
-    data = request.get_json(silent=True)
-    if data is None:
-        return jsonify({"error": "Invalid or missing JSON body"}), 400
-    current_user_id = get_jwt_identity()
-    
-    is_valid, validated_data = validate_request(CollectionRequest, data)
-    if not is_valid:
-        return jsonify(validated_data), 400
     
     if str(validated_data.user_id) != str(current_user_id):
         return forbidden_error("Unauthorized")
@@ -2187,16 +2030,9 @@ def get_collection(collection_id):
 
 @app.route('/api/v1/collections/<int:collection_id>', methods=['PUT'])
 @jwt_required()
-def update_collection(collection_id):
+@validate_schema(UpdateCollectionRequest)
+def update_collection(collection_id, validated_data):
     """Update a collection."""
-    data = request.get_json(silent=True)
-    if data is None:
-        return jsonify({"error": "Invalid or missing JSON body"}), 400
-    current_user_id = get_jwt_identity()
-    
-    is_valid, validated_data = validate_request(UpdateCollectionRequest, data)
-    if not is_valid:
-        return jsonify(validated_data), 400
     
     try:
         collection = Collection.query.get(collection_id)
@@ -2254,14 +2090,6 @@ def delete_collection(collection_id):
 @jwt_required()
 def add_book_to_collection(collection_id):
     """Add a book to a collection."""
-    data = request.get_json(silent=True)
-    if data is None:
-        return jsonify({"error": "Invalid or missing JSON body"}), 400
-    current_user_id = get_jwt_identity()
-    
-    is_valid, validated_data = validate_request(AddToCollectionRequest, data)
-    if not is_valid:
-        return jsonify(validated_data), 400
     
     try:
         collection = Collection.query.get(collection_id)
