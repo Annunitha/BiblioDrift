@@ -778,13 +778,6 @@ def _validate_jwt_secret_startup():
 
 _validate_jwt_secret_startup()
 
-@app.route('/api/v1/config', methods=['GET'])
-def get_config():
-    """Serve public configuration values like Google Books API Key."""
-    return jsonify({
-        "google_books_key": os.getenv('GOOGLE_BOOKS_API_KEY', ''),
-        "google_books_key_secondary": os.getenv('GOOGLE_BOOKS_API_KEY_SECONDARY', '')
-    })
 
 # =====================================================================
 # ENDPOINT: CSRF Token Retrieval

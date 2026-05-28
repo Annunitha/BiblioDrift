@@ -111,27 +111,6 @@ function getCookie(name) {
     return null;
 }
 
-async function loadConfig() {
-    try {
-        const res = await fetch(`${MOOD_API_BASE}/config`, { credentials: 'include' });
-        if (res.ok) {
-            const data = await res.json();
-            GOOGLE_API_KEY = data.google_books_key || '';
-            if (window.GoogleBooksClient) {
-                window.GoogleBooksClient.setKeys([
-                    data.google_books_key,
-                    data.google_books_key_secondary,
-                ]);
-            }
-            if (IS_DEV) {
-                console.log('Config loaded');
-            }
-        }
-    } catch (e) {
-        console.warn('Failed to load backend config', e);
-    }
-}
-
 const CollectionAPI = {
     getHeaders() {
         const headers = { 'Content-Type': 'application/json' };
@@ -2886,10 +2865,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const themeManager = new ThemeManager();
 
     // 2. Load Config (Non-blocking)
-    loadConfig();
-
-
-
     // --- AUTH LOGIC ---
     const toggleLink = document.getElementById('toggleText');
     const authTitle = document.getElementById('authTitle');
