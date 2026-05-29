@@ -32,6 +32,8 @@ instance/
 *.db
 # Virtual Environment
 venv/
+
+node_modules/
 .venv/
 
 # Local untracked scripts folder
