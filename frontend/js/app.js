@@ -3279,6 +3279,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderer.renderCuratedSection(query, 'search-results-grid', 20);
     } else if (document.getElementById('dynamic-shelves-container')) {
         console.log('📚 Initializing Curated Discovery Sections...');
+        const container = document.getElementById('dynamic-shelves-container');
         const fallbackShelves = [
             { type: 'query', query: 'subject:mystery atmosphere', elementId: 'row-rainy', title: 'Rainy Evening Reads', subtitle: 'Mystery & Melancholy', icon: 'fa-cloud-rain' },
             { type: 'query', query: 'authors:arundhati roy|subject:india', elementId: 'row-indian', title: 'Indian Authors', subtitle: 'Subcontinent Voices', icon: 'fa-feather' },
